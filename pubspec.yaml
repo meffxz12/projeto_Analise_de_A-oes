@@ -87,3 +87,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+  fonts:
+    - family: Roboto_Condensed
+      fonts:
+        - asset: assets/fonts/Roboto_Condensed-Black.ttf
+        - asset: assets/fonts/Roboto_Condensed-Bold.ttf

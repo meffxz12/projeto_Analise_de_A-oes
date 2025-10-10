@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'login.dart';
+import 'package:meu_app/cadastro.dart';
 void main() => runApp(MaterialApp(
-  home: Login(),
+  home: Cadastro(),
 ));
