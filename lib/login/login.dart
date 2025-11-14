@@ -12,12 +12,20 @@ class Login extends StatefulWidget {
 class _LoginState extends State<Login> {
   final _formKey = GlobalKey<FormState>();
 
+<<<<<<< HEAD
   final TextEditingController Email = TextEditingController();
+=======
+  final TextEditingController email = TextEditingController();
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
   final TextEditingController senha = TextEditingController();
 
   @override
   void dispose() {
+<<<<<<< HEAD
     Email.dispose();
+=======
+    email.dispose();
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
     senha.dispose();
     super.dispose();
   }
@@ -80,7 +88,11 @@ class _LoginState extends State<Login> {
                       SizedBox(height: 15),
                       // Email
                       TextFormGlobal(
+<<<<<<< HEAD
                         controller: Email,
+=======
+                        controller: email,
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
                         text: "Email",
                         obscure: false,
                         textInputType: TextInputType.emailAddress,

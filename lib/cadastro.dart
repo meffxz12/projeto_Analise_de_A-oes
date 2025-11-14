@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+<<<<<<< HEAD
 import 'package:meu_app/login/button.dart';
 import 'package:meu_app/login/login.dart';
 import '../text.form.global.dart';
+=======
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../text.form.global.dart';
+import '../login/login.dart';
+import '../login/button.dart';
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
 
 class Cadastro extends StatefulWidget {
   Cadastro({Key? key}) : super(key: key);
@@ -18,6 +26,40 @@ class _CadastroState extends State<Cadastro> {
   final TextEditingController senha = TextEditingController();
   final TextEditingController confirmasenha = TextEditingController();
 
+<<<<<<< HEAD
+=======
+  Future<void> criarConta() async {
+    final url = Uri.parse(
+      'https://donnette-unaided-noncryptically.ngrok-free.dev/auth/criar_conta',
+    );
+
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "nome": nome.text,
+        "email_institucional": email.text,
+        "senha": senha.text,
+        "ativo": true,
+        "admin": false,
+      }),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      // Cadastro bem-sucedido
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Cadastro realizado com sucesso!")),
+      );
+      Navigator.push(context, MaterialPageRoute(builder: (context) => Login()));
+    } else {
+      // Erro
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao cadastrar: ${response.body}")),
+      );
+    }
+  }
+
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -69,11 +111,17 @@ class _CadastroState extends State<Cadastro> {
                 ),
                 child: Form(
                   key: formKey,
+<<<<<<< HEAD
 
                   child: Column(
                     children: [
                       SizedBox(height: 15),
                       // Nome
+=======
+                  child: Column(
+                    children: [
+                      SizedBox(height: 15),
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
                       TextFormGlobal(
                         controller: nome,
                         text: "Nome Completo",
@@ -87,10 +135,14 @@ class _CadastroState extends State<Cadastro> {
                           return null;
                         },
                       ),
+<<<<<<< HEAD
 
                       SizedBox(height: 15),
 
                       // email
+=======
+                      SizedBox(height: 15),
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
                       TextFormGlobal(
                         controller: email,
                         text: "Email",
@@ -105,7 +157,10 @@ class _CadastroState extends State<Cadastro> {
                         },
                       ),
                       SizedBox(height: 15),
+<<<<<<< HEAD
                       //senha
+=======
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
                       TextFormGlobal(
                         controller: senha,
                         text: "Senha",
@@ -120,7 +175,10 @@ class _CadastroState extends State<Cadastro> {
                         },
                       ),
                       SizedBox(height: 15),
+<<<<<<< HEAD
                       //confirmar senha
+=======
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
                       TextFormGlobal(
                         controller: confirmasenha,
                         text: "Confirmar Senha",
@@ -138,18 +196,28 @@ class _CadastroState extends State<Cadastro> {
                         },
                       ),
                       SizedBox(height: 15),
+<<<<<<< HEAD
                       //botão de entrar
+=======
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
                       ButtonGlobal(
                         color: Color.fromARGB(255, 34, 66, 245),
                         text: 'Cadastrar',
                         onTap: () {
                           if (formKey.currentState!.validate()) {
+<<<<<<< HEAD
                             print("Cadastro realizado com sucesso");
+=======
+                            criarConta();
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
                           }
                         },
                       ),
                       SizedBox(height: 20),
+<<<<<<< HEAD
                       // botão de login
+=======
+>>>>>>> 42c33b4 (+alteracoes e add da tela incial e home)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
