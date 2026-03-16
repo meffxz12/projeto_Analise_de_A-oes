@@ -1,0 +1,39 @@
+name: meu_app
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  http: ^1.2.2
+  cupertino_icons: ^1.0.8
+  smooth_page_indicator: ^1.0.0
+  shared_preferences: ^2.1.1
+  firebase_auth: ^5.3.0
+  logger: ^2.0.2
+  
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_svg: ^2.0.10
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    - family: Roboto_Condensed
+      fonts:
+        - asset: assets/fonts/Roboto_Condensed-Black.ttf
+        - asset: assets/fonts/Roboto_Condensed-Bold.ttf
+
+  assets:
+  - assets/images/
+  - assets/fonts/
