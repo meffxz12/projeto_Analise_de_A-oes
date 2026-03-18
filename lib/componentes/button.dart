@@ -5,7 +5,7 @@ class ButtonGlobal extends StatelessWidget {
     Key? key,
     required this.text,
     required this.onTap,
-    required this.color,
+    required this.color, required Color colortext,
   }) : super(key: key);
 
   final String text;

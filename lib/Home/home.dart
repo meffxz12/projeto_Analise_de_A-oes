@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:meu_app/Home/pesquisar.dart';
+import 'package:meu_apli/Home/pesquisar.dart';
 
 class Home extends StatelessWidget {
   const Home({Key? key}) : super(key: key);

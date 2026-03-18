@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:meu_app/componentes/button.dart';
+import 'package:meu_apli/componentes/button.dart';
 import '../componentes/text.form.global.dart';
-import 'package:meu_app/telas/cadastro.dart';
+import 'package:meu_apli/telas/cadastro.dart';
 
 class Login extends StatefulWidget {
   Login({Key? key}) : super(key: key);
@@ -115,6 +115,7 @@ class _LoginState extends State<Login> {
                         onTap: () {
                           print('login');
                         },
+                        colortext: Colors.white,
                       ),
                       SizedBox(height: 20),
                       Row(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:meu_app/login/button.dart';
+import 'package:meu_apli/login/button.dart';
 import '../text.form.global.dart';
-import 'package:meu_app/cadastro.dart';
+import 'package:meu_apli/cadastro.dart';
 class Login extends StatelessWidget {
   Login({Key? key}) : super(key: key);
   final TextEditingController matricula = TextEditingController();
@@ -76,6 +76,7 @@ class Login extends StatelessWidget {
                    onTap: () {
                       print('login');
                     },
+                    colortext: Colors.white,
                    ),
                    SizedBox(height: 20),
                    Row( 

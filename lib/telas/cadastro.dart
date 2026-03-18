@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:meu_app/componentes/button.dart';
-import 'package:meu_app/telas/login.dart';
+import 'package:meu_apli/componentes/button.dart';
+import 'package:meu_apli/telas/login.dart';
 import '../componentes/text.form.global.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
@@ -198,6 +198,7 @@ class _CadastroState extends State<Cadastro> {
                               }
                             }
                             },
+                            colortext: Colors.white,
                             ),
                         
                         

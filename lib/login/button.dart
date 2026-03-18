@@ -8,11 +8,13 @@ class ButtonGlobal extends StatelessWidget {
     required this.text,
     required this.onTap,
     required this.color,
+     required this.colortext,
   }) : super(key: key);
 
   final String text;
   final VoidCallback onTap;
   final Color color;
+    final Color colortext;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +37,7 @@ class ButtonGlobal extends StatelessWidget {
     child: Text(
       text,
       style: TextStyle(
-        color: Colors.white,
+        color: colortext,
         fontSize: 18,
         fontWeight: FontWeight.w300,
         fontFamily: 'Roboto',

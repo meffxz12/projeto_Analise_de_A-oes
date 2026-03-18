@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:meu_app/home/home.dart';
+import 'package:meu_apli/home/home.dart';
 
 class Pesquisar extends StatelessWidget implements PreferredSizeWidget {
   final Function(String) onChanged;

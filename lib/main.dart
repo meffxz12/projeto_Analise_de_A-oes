@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:meu_app/telas/bemvindo.dart';
+import 'package:meu_apli/telas/bemvindo.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'telas/hometela.dart';
 
 
 void main() {
- runApp(MaterialApp(home: Bemvindo()));
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: HomePage(),
+    );
+  }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:meu_app/login/button.dart';
+import 'package:meu_apli/login/button.dart';
 import '../text.form.global.dart';
 class Cadastro extends StatelessWidget {
   Cadastro({Key? key}) : super(key: key);
@@ -124,6 +124,7 @@ class Cadastro extends StatelessWidget {
                       print("Cadastro realizado com sucesso");
                     }
                     },
+                    colortext: Colors.white,
                    ),
                    SizedBox(height: 20),
                    Row(

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:meu_app/telas/login.dart';
-import 'package:meu_app/telaincial/pages/pagina1.dart';
-import 'package:meu_app/telaincial/pages/pagina2.dart';
-import 'package:meu_app/telaincial/pages/pagina3.dart';
-import 'package:meu_app/telaincial/pages/pagina4.dart';
+import 'package:meu_apli/telas/login.dart';
+import 'package:meu_apli/telaincial/pages/pagina1.dart';
+import 'package:meu_apli/telaincial/pages/pagina2.dart';
+import 'package:meu_apli/telaincial/pages/pagina3.dart';
+import 'package:meu_apli/telaincial/pages/pagina4.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
-
+/*
 class Telainicial extends StatefulWidget {
   Telainicial({Key? key}) : super(key: key);
   @override
@@ -97,3 +97,4 @@ class _TelainicialState extends State<Telainicial> {
     );
   }
 }
+*/
