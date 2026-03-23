@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:meu_apli/componentes/button.dart';
 import 'package:meu_apli/componentes/coresglobais.dart';
+import 'package:meu_apli/componentes/opcaocard.dart';
+import '../componentes/grafico.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -22,6 +25,7 @@ class HomePage extends StatelessWidget {
                   bottomRight: Radius.circular(25),
                 ),
               ),
+
               child: Row(
                 children: [
                   Expanded(
@@ -42,45 +46,128 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 15),
                   const CircleAvatar(
                     radius: 20,
-                    backgroundImage: NetworkImage(
-                      'https://i.pravatar.cc/300',
-                    ),
-                  ),
+                    backgroundColor: Colors.white24,
+                    child: Icon(Icons.person, color: Colors.white),
+                  )
                 ],
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
 
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15),
-                child: ListView(
-                  children: [ 
-                  Container(
-                    height: 180,
-                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Center(
-                      child: Text(
-                        "Gráfico de desempenho (placeholder)",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  )
-                  ],
+            Container(
+            margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-              ),
+                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [ 
+                  Row(
+                    
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Gráfico de desempenho",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  //  const GraficoIbovespa(),
+                  ]
             ),
+            ),
+            // Ações e fundos akir
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [             
+                Expanded(
+                  child: OpcaoCard(
+                    text: "Ações",
+                    onTap: () {},
+                    color: CoresGlobais.botao2,
+                    textColor: Colors.white,
+                    icon: Icons.pie_chart,
+                  ),
+                ),
+                 SizedBox(width: 15),
+                Expanded(
+                  child: OpcaoCard(
+                    text: "Fundos",
+                    onTap: () {},
+                    color: CoresGlobais.botao2,
+                    textColor: Colors.white,
+                    icon: Icons.show_chart,
+                  ),
+                ),
+              ],
+
+            ) 
+            
+            ),
+            SizedBox(height: 15),
+
+            Container(
+            margin: const EdgeInsets.symmetric(horizontal: 15),
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [ 
+                  Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text(
+                          "Vídeos recomendados",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          "Ver todos",
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    videoCard("Como analisar ações?"),
+                    const SizedBox(height: 10),
+                    videoCard("O que são fundos imobiliários?"),
+                  ]
+            ),
+            )
           ],
         ),
+
       ),
+        
 
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: CoresGlobais.botao,
@@ -145,11 +232,11 @@ class HomePage extends StatelessWidget {
       ),
     );
   }
-
-  // ✅ VIDEO CARD (AGORA DENTRO DA CLASSE)
+//pra video card
   Widget videoCard(String title) {
     return Container(
       height: 120,
+      width: 00,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(15),
         color: Colors.blue,
@@ -175,6 +262,8 @@ class HomePage extends StatelessWidget {
     );
   }
 }
+
+
 
 // INDICADOR (FORA DA CLASSE)
 class IndicatorCard extends StatelessWidget {

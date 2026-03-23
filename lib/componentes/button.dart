@@ -6,11 +6,13 @@ class ButtonGlobal extends StatelessWidget {
     required this.text,
     required this.onTap,
     required this.color, required Color colortext,
+     this.icons,
   }) : super(key: key);
 
   final String text;
   final VoidCallback onTap;
   final Color color;
+  final IconData? icons;
 
   @override
   Widget build(BuildContext context) {
