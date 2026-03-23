@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:meu_apli/componentes/coresglobais.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -15,7 +16,7 @@ class HomePage extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
-                color: Color.fromARGB(255, 34, 66, 245),
+                color: CoresGlobais.backgrounder,
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(25),
                   bottomRight: Radius.circular(25),
@@ -52,53 +53,27 @@ class HomePage extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 15),
-
-            // INDICADORES
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: const [
-                IndicatorCard("IBOV", "158.104", "+0.60%"),
-                IndicatorCard("IFIX", "3.612", "+0.58%"),
-                IndicatorCard("SPX", "6.748", "+0.15%"),
-              ],
-            ),
-
             const SizedBox(height: 20),
 
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 15),
                 child: ListView(
-                  children: [
-                    sectionTitle("Ações"),
-                    stockList([
-                      Stock("PETR4", "+1,75%", true),
-                      Stock("ITUB4", "+0,17%", true),
-                      Stock("BBDC4", "+0,56%", true),
-                      Stock("LREN3", "+3,10%", true),
-                      Stock("BHIA3", "-1,80%", false),
-                    ]),
-
-                    sectionTitle("Fundos"),
-                    stockList([
-                      Stock("BOVV11", "+0,74%", true),
-                      Stock("HGLG11", "+0,32%", true),
-                      Stock("XPML11", "+0,41%", true),
-                      Stock("KNRI11", "+0,28%", true),
-                      Stock("MXRF11", "+0,19%", true),
-                    ]),
-
-                    sectionTitle("Últimos vídeos"),
-                    const SizedBox(height: 10),
-
-                    Row(
-                      children: [
-                        Expanded(child: videoCard("O que são investimentos?")),
-                        const SizedBox(width: 10),
-                        Expanded(child: videoCard("O que são ações?")),
-                      ],
+                  children: [ 
+                  Container(
+                    height: 180,
+                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
                     ),
+                    child: Center(
+                      child: Text(
+                        "Gráfico de desempenho (placeholder)",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  )
                   ],
                 ),
               ),
@@ -108,7 +83,7 @@ class HomePage extends StatelessWidget {
       ),
 
       bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: const Color.fromARGB(255, 34, 66, 245),
+        selectedItemColor: CoresGlobais.botao,
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: ""),

@@ -99,7 +99,7 @@ class _CadastroState extends State<Cadastro> {
                           if (value == null || value.isEmpty) {
                             return 'Por favor, insira seu nome completo';
                           } 
-                          if (value!.trim().split(" ").length < 2) {
+                          if (value.trim().split(" ").length < 2) {
                             return 'Digite nome e sobrenome';
                           }
                            if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(value)) {

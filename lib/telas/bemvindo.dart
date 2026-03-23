@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:meu_apli/componentes/button.dart';
-import 'package:meu_apli/login/login.dart';
+import 'package:meu_apli/telas/login.dart';
 import 'package:meu_apli/telaincial/pages/Pagina1.dart';
 import 'package:meu_apli/telaincial/pages/Pagina2.dart';
 import 'package:meu_apli/telaincial/pages/pagina3.dart';
@@ -20,7 +20,7 @@ class _BemvindoState extends State<Bemvindo> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 34, 66, 245),
+      backgroundColor: const Color.fromARGB(255, 110, 80, 41),
     body: Stack(
      children: [ 
       PageView(
