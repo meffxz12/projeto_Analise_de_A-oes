@@ -18,36 +18,62 @@ class OpcaoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black26,
+              color: Colors.black.withOpacity(0.08), // mais leve
               blurRadius: 6,
               offset: const Offset(0, 3),
             ),
           ],
         ),
+
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, color: textColor, size: 28),   
-            const SizedBox(width: 12),                
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+            Row(
+              children: [
+                // Ícone mais leve
+                Container(
+                 
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: textColor,
+                    size: 20, // menor
+                  ),
                 ),
-              ),
+
+                const SizedBox(width: 10),
+
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            Icon(Icons.arrow_forward_ios, color: textColor, size: 18), // ">" à direita
+
+            // seta mais clean
+            Icon(
+              Icons.arrow_forward_ios,
+              color: textColor.withOpacity(0.8),
+              size: 14,
+            ),
           ],
         ),
       ),

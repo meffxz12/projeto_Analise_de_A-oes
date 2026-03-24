@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class CoresGlobais {
-  static const Color backgrounder =  Color.fromARGB(255, 110, 80, 41);
-  static const Color botao = Color.fromARGB(255, 110, 80, 41);
-  static const Color botao2 = Color.fromARGB(255, 184, 114, 49);
+  static const List<Color> backgrounder =  [Colors.purple, Colors.deepPurple];
+  static const Color botao = Color.fromRGBO(148, 66, 199, 1);
+  static const Color botao2 = Color.fromRGBO(148, 66, 199, 1);
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:meu_apli/telas/bemvindo.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:meu_apli/telas/favoritos.dart';
 import 'telas/hometela.dart';
 
 

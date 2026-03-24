@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:meu_apli/componentes/button.dart';
 import 'package:meu_apli/componentes/coresglobais.dart';
 import 'package:meu_apli/componentes/opcaocard.dart';
+import 'package:meu_apli/componentes/videocard.dart';
 import '../componentes/grafico.dart';
 
 class HomePage extends StatelessWidget {
@@ -12,170 +13,176 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[200],
       body: SafeArea(
-        child: Column(
-          children: [
-            // TOPO
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: CoresGlobais.backgrounder,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(25),
-                  bottomRight: Radius.circular(25),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              // Parte de cima
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: CoresGlobais.backgrounder,
+                  ),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(25),
+                    bottomRight: Radius.circular(25),
+                  ),
+                ),
+
+                // Area de pesquisa
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: const TextField(
+                          decoration: InputDecoration(
+                            hintText: "Buscar ativos",
+                            hintStyle: TextStyle(color: Colors.white70),
+                            border: InputBorder.none,
+                            icon: Icon(Icons.search, color: Colors.white),
+                          ),
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    const CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.white24,
+                      child: Icon(Icons.person, color: Colors.white),
+                    ),
+                  ],
                 ),
               ),
 
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(30),
+              const SizedBox(height: 10),
+             // grafico aqui
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "Gráfico de desempenho",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ],
                       ),
-                      child: const TextField(
-                        decoration: InputDecoration(
-                          hintText: "Buscar ativos",
-                          hintStyle: TextStyle(color: Colors.white70),
-                          border: InputBorder.none,
-                          icon: Icon(Icons.search, color: Colors.white),
-                        ),
-                        style: TextStyle(color: Colors.white),
+                      const SizedBox(height: 16),
+
+                      // 🔥 AQUI É O GRÁFICO REAL
+                      const GraficoAcao(),
+                    ],
+                  ),
+                ),
+
+              // Ações e fundos aqui
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OpcaoCard(
+                        text: "Fundos",
+                        onTap: () {},
+                        color: CoresGlobais.botao2,
+                        textColor: Colors.white,
+                        icon: Icons.pie_chart,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 15),
-                  const CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.person, color: Colors.white),
-                  )
-                ],
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: OpcaoCard(
+                        text: "Ações",
+                        onTap: () {},
+                        color: CoresGlobais.botao2,
+                        textColor: Colors.white,
+                        icon: Icons.show_chart,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 10),
-
-            Container(
-            margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+              const SizedBox(height: 15),
+              // Vídeos
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 15),
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [ 
-                  Row(
-                    
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "Gráfico de desempenho",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Vídeos",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                     const SizedBox(height: 16),
-                  //  const GraficoIbovespa(),
-                  ]
-            ),
-            ),
-            // Ações e fundos akir
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [             
-                Expanded(
-                  child: OpcaoCard(
-                    text: "Ações",
-                    onTap: () {},
-                    color: CoresGlobais.botao2,
-                    textColor: Colors.white,
-                    icon: Icons.pie_chart,
-                  ),
-                ),
-                 SizedBox(width: 15),
-                Expanded(
-                  child: OpcaoCard(
-                    text: "Fundos",
-                    onTap: () {},
-                    color: CoresGlobais.botao2,
-                    textColor: Colors.white,
-                    icon: Icons.show_chart,
-                  ),
-                ),
-              ],
 
-            ) 
-            
-            ),
-            SizedBox(height: 15),
-
-            Container(
-            margin: const EdgeInsets.symmetric(horizontal: 15),
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [ 
-                  Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text(
-                          "Vídeos recomendados",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          "Ver todos",
-                          style: TextStyle(
-                            color: Colors.blue,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
+                    // Lista dos vídeos
+                    VideoCard(
+                      title: "Como analisar ações",
+                      videoId: "bkcMlHEtXsI",
+                      duration: "17:10",
                     ),
-                    
-                    const SizedBox(height: 16),
-                    videoCard("Como analisar ações?"),
                     const SizedBox(height: 10),
-                    videoCard("O que são fundos imobiliários?"),
-                  ]
-            ),
-            )
-          ],
+                    VideoCard(
+                      title: "O que são fundos imobiliários?",
+                      videoId: "vZ64S8dFpEM",
+                      duration: "9:54",
+                    ),
+                    const SizedBox(height: 10),
+                    VideoCard(
+                      title: "Análise Técnica para Iniciantes",
+                      videoId: "1tbjXu6oHqI",
+                      duration: "10:08",
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-
       ),
-        
-
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: CoresGlobais.botao,
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: ""),
           BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: ""),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: ""),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.account_balance_wallet), label: ""),
           BottomNavigationBarItem(icon: Icon(Icons.favorite), label: ""),
         ],
       ),
@@ -215,7 +222,8 @@ class HomePage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(stock.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(stock.name,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
@@ -232,38 +240,7 @@ class HomePage extends StatelessWidget {
       ),
     );
   }
-//pra video card
-  Widget videoCard(String title) {
-    return Container(
-      height: 120,
-      width: 00,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(15),
-        color: Colors.blue,
-      ),
-      child: Align(
-        alignment: Alignment.bottomLeft,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(8),
-          decoration: const BoxDecoration(
-            color: Colors.black45,
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(15),
-              bottomRight: Radius.circular(15),
-            ),
-          ),
-          child: Text(
-            title,
-            style: const TextStyle(color: Colors.white),
-          ),
-        ),
-      ),
-    );
-  }
 }
-
-
 
 // INDICADOR (FORA DA CLASSE)
 class IndicatorCard extends StatelessWidget {
@@ -280,9 +257,7 @@ class IndicatorCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 5)
-        ],
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
       ),
       child: Column(
         children: [
