@@ -39,7 +39,7 @@ class _GraficoAcaoState extends State<GraficoAcao> {
         _loading = false;
       });
     } catch (e) {
-      setState(() {
+    setState(() {
         _erro = e.toString();
         _loading = false;
       });

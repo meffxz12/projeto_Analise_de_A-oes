@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:meu_apli/componentes/button.dart';
 import 'package:meu_apli/componentes/coresglobais.dart';
+import 'package:meu_apli/telas/carteirasimulada.dart';
+import 'package:meu_apli/telas/ensino.dart';
+import 'package:meu_apli/telas/hometela.dart';
 
 
-class Favoritos extends StatelessWidget {
+class Favoritos extends StatefulWidget {
   const Favoritos({super.key});
+
+  @override
+  State<Favoritos> createState() => _FavoritosState();
+}
+
+class _FavoritosState extends State<Favoritos> {
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +53,7 @@ class Favoritos extends StatelessWidget {
                     "Favoritos",
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
+                      fontSize: 23,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -52,7 +61,7 @@ class Favoritos extends StatelessWidget {
               ),
             ),
                   ),
-                  const SizedBox(width: 15),
+                  const SizedBox(width: 20),
                   const CircleAvatar(
                     radius: 20,
                     backgroundColor: Colors.white24,
@@ -105,22 +114,8 @@ class Favoritos extends StatelessWidget {
             )
           ]
         ),
-      ),
-          bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: CoresGlobais.botao,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: ""),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: ""),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: ""),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: ""),
-        ],
-      ),
-           
+      ),       
     );
-        
-  
-  
   }
 }
 
@@ -156,7 +151,7 @@ class StockTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Ícone fake
+          // Logo da ação (placeholder)
           Container(
             width: 40,
             height: 40,
@@ -168,7 +163,7 @@ class StockTile extends StatelessWidget {
 
           const SizedBox(width: 12),
 
-          // Nome + código
+          
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -187,7 +182,7 @@ class StockTile extends StatelessWidget {
 
           const Spacer(),
 
-          // Preço + variação
+         
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:meu_apli/componentes/navegacaotelas.dart';
 import 'package:meu_apli/telas/bemvindo.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:meu_apli/telas/carteirasimulada.dart';
+import 'package:meu_apli/telas/ensino.dart';
 import 'package:meu_apli/telas/favoritos.dart';
 import 'telas/hometela.dart';
 
@@ -16,7 +19,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: HomePage(),
+      home: Navegacaotelas(),
     );
   }
 }
