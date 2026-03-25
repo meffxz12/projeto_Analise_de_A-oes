@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:meu_apli/componentes/button.dart';
 import 'package:meu_apli/componentes/coresglobais.dart';
-import 'package:meu_apli/telas/carteirasimulada.dart';
-import 'package:meu_apli/telas/ensino.dart';
-import 'package:meu_apli/telas/hometela.dart';
-
+import 'package:meu_apli/componentes/stock.dart';
 
 class Favoritos extends StatefulWidget {
   const Favoritos({super.key});
@@ -15,6 +11,15 @@ class Favoritos extends StatefulWidget {
 
 class _FavoritosState extends State<Favoritos> {
 
+
+  List<Stock> stocks = [
+    Stock(name: "Petrobras PN", code: "PETR4", price: "R\$ 34,89", change: "+1,95%"),
+    Stock(name: "Vale ON", code: "VALE3", price: "R\$ 66,72", change: "+1,82%"),
+    Stock(name: "BOVA11", code: "BOVA11", price: "R\$ 98,35", change: "+1,29%"),
+    Stock(name: "Itaú PN", code: "ITUB4", price: "R\$ 29,97", change: "+1,60%"),
+    Stock(name: "Magazine Luiza", code: "MGLU3", price: "R\$ 10,45", change: "+2,25%"),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -22,46 +27,38 @@ class _FavoritosState extends State<Favoritos> {
       body: SafeArea(
         child: Column(
           children: [
+
+            // TOPO
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
-                 gradient: LinearGradient(
-                 colors: CoresGlobais.backgrounder,
-                 ),
+                gradient: LinearGradient(
+                  colors: [Colors.purple, Colors.deepPurple],
+                ),
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(25),
                   bottomRight: Radius.circular(25),
                 ),
               ),
-
               child: Row(
                 children: [
-                  Expanded(
-                    child: Container(
-                      
-                         decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.purple, Colors.deepPurple],
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.star, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text(
-                    "Favoritos",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 23,
-                      fontWeight: FontWeight.bold,
+                  const Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.star, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text(
+                          "Favoritos",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 23,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-                  ),
-                  const SizedBox(width: 20),
                   const CircleAvatar(
                     radius: 20,
                     backgroundColor: Colors.white24,
@@ -70,68 +67,35 @@ class _FavoritosState extends State<Favoritos> {
                 ],
               ),
             ),
-             
 
             const SizedBox(height: 10),
 
-            // Lista
+            // LISTA 
             Expanded(
-              child: ListView(
+              child: ListView.builder(
                 padding: const EdgeInsets.all(12),
-                children: const [
-                  StockTile(
-                    name: "Petrobras PN",
-                    code: "PETR4",
-                    price: "R\$ 34,89",
-                    change: "+1,95%  +0,67",
-                  ),
-                  StockTile(
-                    name: "Vale ON",
-                    code: "VALE3",
-                    price: "R\$ 66,72",
-                    change: "+1,82%  +1,19",
-                  ),
-                  StockTile(
-                    name: "BOVA11",
-                    code: "BOVA11",
-                    price: "R\$ 98,35",
-                    change: "+1,29%  +1,25",
-                  ),
-                  StockTile(
-                    name: "Itaú Unibanco PN",
-                    code: "ITUB4",
-                    price: "R\$ 29,97",
-                    change: "+1,60%  +0,47",
-                  ),
-                  StockTile(
-                    name: "Magazine Luiza ON",
-                    code: "MGLU3",
-                    price: "R\$ 10,45",
-                    change: "+2,25%  +0,23",
-                  ),
-                ],
+                itemCount: stocks.length,
+                itemBuilder: (context, index) {
+                  final stock = stocks[index];
+
+                  return StockTile(stock: stock);
+                },
               ),
-            )
-          ]
+            ),
+          ],
         ),
-      ),       
+      ),
     );
   }
 }
 
+//
+// CARD
+//
 class StockTile extends StatelessWidget {
-  final String name;
-  final String code;
-  final String price;
-  final String change;
+  final Stock stock;
 
-  const StockTile({
-    super.key,
-    required this.name,
-    required this.code,
-    required this.price,
-    required this.change,
-  });
+  const StockTile({super.key, required this.stock});
 
   @override
   Widget build(BuildContext context) {
@@ -141,17 +105,12 @@ class StockTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-            offset: Offset(0, 3),
-          ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 6),
         ],
       ),
       child: Row(
         children: [
-          // Logo da ação (placeholder)
           Container(
             width: 40,
             height: 40,
@@ -163,47 +122,29 @@ class StockTile extends StatelessWidget {
 
           const SizedBox(width: 12),
 
-          
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                code,
-                style: TextStyle(color: Colors.grey[600]),
-              ),
+              Text(stock.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(stock.code, style: TextStyle(color: Colors.grey[600])),
             ],
           ),
 
           const Spacer(),
 
-         
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                price,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text(stock.price, style: const TextStyle(fontWeight: FontWeight.bold)),
               Container(
                 margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.green[100],
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  change,
+                  stock.change,
                   style: const TextStyle(
                     color: Colors.green,
                     fontSize: 12,
@@ -214,12 +155,9 @@ class StockTile extends StatelessWidget {
           ),
 
           const SizedBox(width: 8),
-
           const Icon(Icons.star, color: Colors.amber),
         ],
       ),
     );
   }
 }
-    
-

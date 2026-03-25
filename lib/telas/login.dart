@@ -2,105 +2,137 @@ import 'package:flutter/material.dart';
 import 'package:meu_apli/componentes/button.dart';
 import '../text.form.global.dart';
 import 'package:meu_apli/telas/cadastro.dart';
+
 class Login extends StatelessWidget {
   Login({Key? key}) : super(key: key);
-    final TextEditingController email = TextEditingController();
+
+  final TextEditingController email = TextEditingController();
   final TextEditingController senha = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 34, 66, 245),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 50),
-            color: Color.fromARGB(255, 34, 66, 245),
-          
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: 60),
-                const Text(
-                  'Login',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, fontFamily: 'Roboto', color: Colors.white),
-                
-                ),
-                SizedBox(height: 7),
-                Text(
-                  'Bem-vindo de volta!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontFamily: 'Roboto',
-                  ),
-                ),
-              ],
-            ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF6A5AE0), Color(0xFF8E7CFF)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          Expanded(
-            child: Container(
-
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 25),
+              child: Container(
+                padding: const EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 20,
+                    ),
+                  ],
                 ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 50),
                 child: Column(
                   children: [
-                    SizedBox(height: 15),
-                    // Email
-                    TextFormGlobal(controller: email, text: "Email", obscure: false, textInputType: TextInputType.emailAddress, prefixicon: Icons.person, validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor, insira Email';
-                      }
-                      return null;
-                    },),
-                    SizedBox(height: 15),
-                    // senha
-                    TextFormGlobal(controller: senha, text: "Senha", obscure: false, textInputType: TextInputType.visiblePassword, prefixicon: Icons.lock, validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor, insira Senha';
-                      }
-                      return null;
-                    },),
-                   SizedBox(height: 15),
-                   //botão entrar
-                   ButtonGlobal(color: Color.fromARGB(255, 34, 66, 245), 
-                   text: 'Entrar',
-                   onTap: () {
-                      print('login');
-                    },
-                    colortext: Colors.white,
-                   ),
-                   SizedBox(height: 20),
-                   Row( 
+
+                    const Text(
+                      "Login",
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    // EMAIL
+                    TextFormGlobal(
+                      controller: email,
+                      text: "Email",
+                      obscure: false,
+                      textInputType: TextInputType.emailAddress,
+                      prefixicon: Icons.email,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Informe seu email';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // SENHA
+                    TextFormGlobal(
+                      controller: senha,
+                      text: "Senha",
+                      obscure: true,
+                      textInputType: TextInputType.visiblePassword,
+                      prefixicon: Icons.lock,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Informe sua senha';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    // BOTÃO
+                    ButtonGlobal(
+                      color: const Color(0xFF6A5AE0),
+                      text: 'Entrar',
+                      colortext: Colors.white,
+                      onTap: () {
+                        print('login');
+                      },
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    TextButton(
+                      onPressed: () {},
+                      child: const Text(
+                        "Esqueceu a senha?",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text("Não tem uma conta?"),
-                        TextButton(
-                          onPressed: () {
+                        const Text("Não tem conta? "),
+                        GestureDetector(
+                          onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(builder: (context) => Cadastro()),
                             );
                           },
-                          child: Text("Cadastre-se"),
+                          child: const Text(
+                            "Criar conta",
+                            style: TextStyle(
+                              color: Color(0xFF6A5AE0),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ],
-                   )
+                    ),
                   ],
                 ),
               ),
             ),
           ),
-        ],
-      ),      
-    ); 
+        ),
+      ),
+    );
   }
 }

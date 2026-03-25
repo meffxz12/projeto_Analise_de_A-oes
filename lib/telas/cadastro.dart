@@ -14,6 +14,7 @@ String formatarNome(String nome) {
           palavra[0].toUpperCase() + palavra.substring(1).toLowerCase())
       .join(" ");
 }
+
 class Cadastro extends StatefulWidget {
   Cadastro({Key? key}) : super(key: key);
 
@@ -32,86 +33,75 @@ class _CadastroState extends State<Cadastro> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 34, 66, 245),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            color: Color.fromARGB(255, 34, 66, 245),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: 60),
-                const Text(
-                  'Cadastro',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Roboto',
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 7),
-                Text(
-                  'Cadastre-se e comece a usar!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontFamily: 'Roboto',
-                  ),
-                ),
-              ],
-            ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF6A5AE0), Color(0xFF8E7CFF)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 30,
-                  vertical: 50,
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 25),
+              child: Container(
+                padding: const EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 20,
+                    ),
+                  ],
                 ),
                 child: Form(
                   key: formKey,
-
                   child: Column(
                     children: [
-                      SizedBox(height: 15),
-                      // Nome
+
+                      const Text(
+                        "Criar conta",
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 25),
+
+                      // NOME
                       TextFormGlobal(
                         controller: nome,
-                        text: "Nome Completo",
+                        text: "Nome completo",
                         obscure: false,
                         textInputType: TextInputType.name,
                         prefixicon: Icons.person,
-                        onChanged:(value){
+                        onChanged: (value) {
                           nome.text = formatarNome(value);
-                          nome.selection = TextSelection.fromPosition(TextPosition(offset: nome.text.length));
-                        } ,
+                          nome.selection = TextSelection.fromPosition(
+                            TextPosition(offset: nome.text.length),
+                          );
+                        },
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor, insira seu nome completo';
-                          } 
+                            return 'Informe seu nome completo';
+                          }
                           if (value.trim().split(" ").length < 2) {
                             return 'Digite nome e sobrenome';
                           }
-                           if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(value)) {
-                            return 'O nome deve conter apenas letras e espaços';
+                          if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(value)) {
+                            return 'Apenas letras e espaços';
                           }
                           return null;
                         },
                       ),
 
-                      SizedBox(height: 15),
+                      const SizedBox(height: 20),
 
-                      // email
+                      // EMAIL
                       TextFormGlobal(
                         controller: email,
                         text: "Email",
@@ -120,16 +110,19 @@ class _CadastroState extends State<Cadastro> {
                         prefixicon: Icons.email,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor, insira seu email';
+                            return 'Informe seu email';
                           }
-                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                            return 'Por favor, insira um email válido';
+                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
+                              .hasMatch(value)) {
+                            return 'Email inválido';
                           }
                           return null;
                         },
                       ),
-                      SizedBox(height: 15),
-                      //senha
+
+                      const SizedBox(height: 20),
+
+                      // SENHA
                       TextFormGlobal(
                         controller: senha,
                         text: "Senha",
@@ -138,84 +131,92 @@ class _CadastroState extends State<Cadastro> {
                         prefixicon: Icons.lock,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor, insira sua senha';
+                            return 'Informe sua senha';
                           }
-                          if (value.length < 8 || !RegExp(r'[A-Z]').hasMatch(value) || !RegExp(r'[0-9]').hasMatch(value)) {
-                            return 'A senha deve conter pelo menos 8 caracteres, incluindo uma letra maiúscula e um número';
+                          if (value.length < 8 ||
+                              !RegExp(r'[A-Z]').hasMatch(value) ||
+                              !RegExp(r'[0-9]').hasMatch(value)) {
+                            return 'Mín. 8 caracteres, 1 maiúscula e 1 número';
                           }
                           return null;
                         },
                       ),
-                      SizedBox(height: 15),
-                      //confirmar senha
+
+                      const SizedBox(height: 20),
+
+                      // CONFIRMAR SENHA
                       TextFormGlobal(
                         controller: confirmasenha,
-                        text: "Confirmar Senha",
+                        text: "Confirmar senha",
                         obscure: true,
                         textInputType: TextInputType.visiblePassword,
                         prefixicon: Icons.lock,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor, confirme sua senha';
+                            return 'Confirme sua senha';
                           }
                           if (value != senha.text) {
-                            return 'As senhas não coincidem';
+                            return 'Senhas não coincidem';
                           }
                           return null;
                         },
                       ),
-                      SizedBox(height: 15),
 
+                      const SizedBox(height: 25),
+
+                      // BOTÃO
                       ButtonGlobal(
                         text: "Cadastrar",
-                        color: Color.fromARGB(255, 34, 66, 245),
+                        color: const Color(0xFF6A5AE0),
+                        colortext: Colors.white,
                         onTap: () async {
                           if (formKey.currentState!.validate()) {
-                            try{ 
-                             await FirebaseAuth.instance
+                            try {
+                              await FirebaseAuth.instance
                                   .createUserWithEmailAndPassword(
-                                      email: email.text, password: senha.text);
-                                       logger.i("Conta criada com sucesso");
-                                if (!mounted) return;
-                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Conta criada com sucesso')), );
-                               
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => Login(),
-                                  ),
-                                );
-                              
-                              } catch (error) {
-                                logger.w("Erro ao criar conta: $error");
-                                 if (!mounted) return;
-                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Erro ao criar conta: $error')), );
-                               
-                              
-                                
-                              }
+                                email: email.text,
+                                password: senha.text,
+                              );
+
+                              logger.i("Conta criada com sucesso");
+
+                              if (!mounted) return;
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content:
+                                        Text('Conta criada com sucesso')),
+                              );
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => Login(),
+                                ),
+                              );
+                            } catch (error) {
+                              logger.w("Erro ao criar conta: $error");
+
+                              if (!mounted) return;
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content:
+                                        Text('Erro ao criar conta: $error')),
+                              );
                             }
-                            },
-                            colortext: Colors.white,
-                            ),
-                        
-                        
-                    
+                          }
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            'Já possui uma conta?',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 14,
-                              fontFamily: 'Roboto',
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () {
+                          const Text("Já tem conta? "),
+                          GestureDetector(
+                            onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -223,12 +224,11 @@ class _CadastroState extends State<Cadastro> {
                                 ),
                               );
                             },
-                            child: Text(
-                              'Login',
+                            child: const Text(
+                              "Entrar",
                               style: TextStyle(
-                                color: Color.fromARGB(255, 34, 66, 245),
-                                fontSize: 14,
-                                fontFamily: 'Roboto',
+                                color: Color(0xFF6A5AE0),
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
@@ -240,7 +240,7 @@ class _CadastroState extends State<Cadastro> {
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
