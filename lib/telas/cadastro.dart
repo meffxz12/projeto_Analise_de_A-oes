@@ -16,10 +16,10 @@ String formatarNome(String nome) {
 }
 
 class Cadastro extends StatefulWidget {
-  Cadastro({Key? key}) : super(key: key);
+  const Cadastro({Key? key}) : super(key: key);
 
   @override
-  _CadastroState createState() => _CadastroState();
+  State<Cadastro> createState() => _CadastroState();
 }
 
 class _CadastroState extends State<Cadastro> {
@@ -29,6 +29,15 @@ class _CadastroState extends State<Cadastro> {
   final TextEditingController email = TextEditingController();
   final TextEditingController senha = TextEditingController();
   final TextEditingController confirmasenha = TextEditingController();
+
+  @override
+  void dispose() {
+    nome.dispose();
+    email.dispose();
+    senha.dispose();
+    confirmasenha.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +63,7 @@ class _CadastroState extends State<Cadastro> {
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 20,
+                      offset: Offset(0, 10),
                     ),
                   ],
                 ),
@@ -61,7 +71,6 @@ class _CadastroState extends State<Cadastro> {
                   key: formKey,
                   child: Column(
                     children: [
-
                       const Text(
                         "Criar conta",
                         style: TextStyle(
@@ -72,7 +81,7 @@ class _CadastroState extends State<Cadastro> {
 
                       const SizedBox(height: 25),
 
-                      // NOME
+                      // nome completo do usuario
                       TextFormGlobal(
                         controller: nome,
                         text: "Nome completo",
@@ -80,9 +89,11 @@ class _CadastroState extends State<Cadastro> {
                         textInputType: TextInputType.name,
                         prefixicon: Icons.person,
                         onChanged: (value) {
-                          nome.text = formatarNome(value);
-                          nome.selection = TextSelection.fromPosition(
-                            TextPosition(offset: nome.text.length),
+                          final formatado = formatarNome(value);
+                          nome.value = TextEditingValue(
+                            text: formatado,
+                            selection: TextSelection.collapsed(
+                                offset: formatado.length),
                           );
                         },
                         validator: (value) {
@@ -101,7 +112,7 @@ class _CadastroState extends State<Cadastro> {
 
                       const SizedBox(height: 20),
 
-                      // EMAIL
+                      // o email do usuario
                       TextFormGlobal(
                         controller: email,
                         text: "Email",
@@ -122,7 +133,7 @@ class _CadastroState extends State<Cadastro> {
 
                       const SizedBox(height: 20),
 
-                      // SENHA
+                      // senha ne
                       TextFormGlobal(
                         controller: senha,
                         text: "Senha",
@@ -144,7 +155,7 @@ class _CadastroState extends State<Cadastro> {
 
                       const SizedBox(height: 20),
 
-                      // CONFIRMAR SENHA
+                      // confirmar senha
                       TextFormGlobal(
                         controller: confirmasenha,
                         text: "Confirmar senha",
@@ -164,50 +175,65 @@ class _CadastroState extends State<Cadastro> {
 
                       const SizedBox(height: 25),
 
-                      // BOTÃO
+                      // botao
                       ButtonGlobal(
                         text: "Cadastrar",
                         color: const Color(0xFF6A5AE0),
                         colortext: Colors.white,
+                        icons: Icons.person_add,
                         onTap: () async {
                           if (formKey.currentState!.validate()) {
-                            try {
-                              await FirebaseAuth.instance
-                                  .createUserWithEmailAndPassword(
-                                email: email.text,
-                                password: senha.text,
+                           try {
+                                      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                                        email: email.text.trim(),
+                                        password: senha.text.trim(),
+                                      );
+
+                                    } on FirebaseAuthException catch (e) {
+                                      String mensagem = '';
+
+                                      if (e.code == 'email-already-in-use') {
+                                        mensagem = 'Esse email já está em uso';
+                                      } else if (e.code == 'weak-password') {
+                                        mensagem = 'Senha muito fraca';
+                                      } else {
+                                        mensagem = 'Erro: ${e.message}';
+                                      }
+
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(mensagem)),
+                                      );
+                                    }
+
+                           
+                              Navigator.pushAndRemoveUntil(
+                                    context,
+                                    PageRouteBuilder(
+                                      pageBuilder: (context, animation, secondaryAnimation) => Login(),
+                                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                        final tween = Tween(
+                                          begin: const Offset(0.0, 0.1), // vem levemente de baixo
+                                          end: Offset.zero,
+                                        ).chain(CurveTween(curve: Curves.easeInOut));
+
+                                        return FadeTransition(
+                                          opacity: animation,
+                                          child: SlideTransition(
+                                            position: animation.drive(tween),
+                                            child: child,
+                                          ),
+                                        );
+                                      },
+                                      transitionDuration: const Duration(milliseconds: 400),
+                                    ),
+                                    (route) => false,
                               );
-
-                              logger.i("Conta criada com sucesso");
-
-                              if (!mounted) return;
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content:
-                                        Text('Conta criada com sucesso')),
-                              );
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => Login(),
-                                ),
-                              );
-                            } catch (error) {
-                              logger.w("Erro ao criar conta: $error");
-
-                              if (!mounted) return;
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content:
-                                        Text('Erro ao criar conta: $error')),
-                              );
-                            }
                           }
                         },
-                      ),
+                         ),
+                      
+                        
+                                  
 
                       const SizedBox(height: 15),
 
@@ -217,7 +243,8 @@ class _CadastroState extends State<Cadastro> {
                           const Text("Já tem conta? "),
                           GestureDetector(
                             onTap: () {
-                              Navigator.push(
+                            
+                              Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => Login(),

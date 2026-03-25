@@ -33,7 +33,7 @@ class _BemVindoState extends State<BemVindo> {
           child: Stack(
             children: [
 
-              // PÁGINAS
+           
               PageView(
                 controller: _controller,
                 children: [
