@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:meu_apli/componentes/navegacaotelas.dart';
-import 'package:meu_apli/telas/bemvindo.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:meu_apli/telas/carteirasimulada.dart';
-import 'package:meu_apli/telas/ensino.dart';
-import 'package:meu_apli/telas/favoritos.dart';
-import 'package:meu_apli/telas/hometela.dart';
-
+import 'package:meu_apli/navegacao/navegacaotelas.dart';
+import 'package:meu_apli/telas/home/hometela.dart';
+import 'package:meu_apli/telas/splash_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -19,7 +15,14 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: Navegacaotelas(),
+      title: 'Análise de Ações',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6A5AE0),
+        ),
+        useMaterial3: true,
+      ),
+      home: const MainNavegacao(),
     );
   }
 }

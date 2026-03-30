@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:meu_apli/componentes/coresglobais.dart';
+import 'package:meu_apli/cores/coresglobais.dart';
 
 class Perfil extends StatelessWidget {
   const Perfil({super.key});
