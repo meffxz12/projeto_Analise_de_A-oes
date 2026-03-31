@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:meu_apli/navegacao/navegacaotelas.dart';
+import 'package:meu_apli/telas/auth/cadastro.dart';
 import 'package:meu_apli/telas/home/hometela.dart';
 import 'package:meu_apli/telas/splash_screen.dart';
 
@@ -22,7 +23,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const MainNavegacao(),
+      home: const CadastroScreen(),
     );
   }
 }

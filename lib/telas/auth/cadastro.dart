@@ -1,9 +1,12 @@
+
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:meu_apli/services/apiservice.dart';
 import 'package:meu_apli/componentes/button.dart';
 import 'package:meu_apli/componentes/text_form_global.dart';
 import 'package:meu_apli/navegacao/navegacaotelas.dart';
 import 'package:meu_apli/telas/auth/login.dart';
+
+const _baseUrl = 'https://lanuginose-unsyllogistically-dianna.ngrok-free.dev'; // Android emulator → localhost
 
 String _formatarNome(String nome) {
   return nome
@@ -25,6 +28,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
   final _email = TextEditingController();
   final _senha = TextEditingController();
   final _confirmaSenha = TextEditingController();
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -35,32 +39,33 @@ class _CadastroScreenState extends State<CadastroScreen> {
     super.dispose();
   }
 
-  Future<void> _cadastrar() async {
-    if (!_formKey.currentState!.validate()) return;
+Future<void> _cadastrar() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _email.text.trim(),
-        password: _senha.text.trim(),
-      );
-      await cred.user?.updateDisplayName(_nome.text.trim());
+  setState(() => _loading = true);
 
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavegacao()),
-        (route) => false,
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      final msg = switch (e.code) {
-        'email-already-in-use' => 'Esse email já está em uso',
-        'weak-password' => 'Senha muito fraca',
-        _ => 'Erro: ${e.message}',
-      };
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    }
+  try {
+    await ApiService.criarConta(
+      _nome.text.trim(),
+      _email.text.trim(),
+      _senha.text.trim(),
+    );
+
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const MainNavegacao()),
+      (route) => false,
+    );
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+    );
+  } finally {
+    if (mounted) setState(() => _loading = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +123,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
                       const SizedBox(height: 20),
                       TextFormGlobal(
                         controller: _email,
-                        text: 'Email',
+                        text: 'Email institucional',
                         obscure: false,
                         textInputType: TextInputType.emailAddress,
                         prefixicon: Icons.email,
@@ -157,13 +162,15 @@ class _CadastroScreenState extends State<CadastroScreen> {
                         },
                       ),
                       const SizedBox(height: 25),
-                      ButtonGlobal(
-                        text: 'Cadastrar',
-                        color: const Color(0xFF6A5AE0),
-                        colortext: Colors.white,
-                        icons: Icons.person_add,
-                        onTap: _cadastrar,
-                      ),
+                      _loading
+                          ? const CircularProgressIndicator(color: Color(0xFF6A5AE0))
+                          : ButtonGlobal(
+                              text: 'Cadastrar',
+                              color: const Color(0xFF6A5AE0),
+                              colortext: Colors.white,
+                              icons: Icons.person_add,
+                              onTap: _cadastrar,
+                            ),
                       const SizedBox(height: 15),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,

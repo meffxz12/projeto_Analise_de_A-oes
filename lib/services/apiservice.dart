@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static const String baseUrl =
-      "https://subdermic-semiluminously-beckie.ngrok-free.dev";
+      "https://lanuginose-unsyllogistically-dianna.ngrok-free.dev";
 
   // ── TOKEN ────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ class ApiService {
     final response = await http.post(
       url,
       headers: await _headers(),
-      body: jsonEncode({'email': email, 'senha': senha}),
+      body: jsonEncode({'email_institucional': email, 'senha': senha}),
     );
 
     if (response.statusCode == 200) {
@@ -52,19 +52,23 @@ class ApiService {
     }
   }
 
-  static Future<void> criarConta(String nome, String email, String senha) async {
-    final url = Uri.parse('$baseUrl/auth/criar_conta');
-    final response = await http.post(
-      url,
-      headers: await _headers(),
-      body: jsonEncode({'nome': nome, 'email': email, 'senha': senha}),
-    );
+static Future<void> criarConta(String nome, String email, String senha) async {
+  final url = Uri.parse('$baseUrl/auth/criar_conta');
+  final response = await http.post(
+    url,
+    headers: await _headers(),
+    body: jsonEncode({
+      'nome': nome,
+      'email_institucional': email, // ← era 'email', campo errado
+      'senha': senha,
+    }),
+  );
 
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      final data = jsonDecode(response.body);
-      throw Exception(data['detail'] ?? 'Erro ao criar conta');
-    }
+  if (response.statusCode != 200 && response.statusCode != 201) {
+    final data = jsonDecode(response.body);
+    throw Exception(data['detail'] ?? 'Erro ao criar conta');
   }
+}
 
   static Future<void> logout() async {
     final url = Uri.parse('$baseUrl/config/logout');

@@ -1,17 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:meu_apli/componentes/button.dart';
 import 'package:meu_apli/componentes/text_form_global.dart';
+import 'package:meu_apli/services/apiservice.dart';
 import 'package:meu_apli/navegacao/navegacaotelas.dart';
 import 'package:meu_apli/telas/auth/cadastro.dart';
 
-class LoginScreen extends StatelessWidget {
-  LoginScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
-  final TextEditingController _email = TextEditingController();
-  final TextEditingController _senha = TextEditingController();
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
 
-  Future<void> _login(BuildContext context) async {
+class _LoginScreenState extends State<LoginScreen> {
+  final _email = TextEditingController();
+  final _senha = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _senha.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
     if (_email.text.isEmpty || _senha.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Preencha email e senha')),
@@ -19,27 +32,27 @@ class LoginScreen extends StatelessWidget {
       return;
     }
 
+    setState(() => _loading = true);
+
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _email.text.trim(),
-        password: _senha.text.trim(),
+      await ApiService.login(
+        _email.text.trim(),
+        _senha.text.trim(),
       );
 
-      if (!context.mounted) return;
+      if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         _fadeRoute(const MainNavegacao()),
         (route) => false,
       );
-    } on FirebaseAuthException catch (e) {
-      if (!context.mounted) return;
-      final msg = switch (e.code) {
-        'user-not-found' => 'Usuário não encontrado',
-        'wrong-password' => 'Senha incorreta',
-        'invalid-email' => 'Email inválido',
-        _ => 'Erro: ${e.message}',
-      };
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -96,12 +109,11 @@ class LoginScreen extends StatelessWidget {
                     TextFormField(
                       controller: _email,
                       decoration: const InputDecoration(
-                        labelText: 'Email',
+                        labelText: 'Email institucional',
                         prefixIcon: Icon(Icons.email),
                       ),
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
-                      validator: (v) => v == null || v.isEmpty ? 'Informe seu email' : null,
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -113,19 +125,21 @@ class LoginScreen extends StatelessWidget {
                       obscureText: true,
                       keyboardType: TextInputType.visiblePassword,
                       textInputAction: TextInputAction.done,
-                      validator: (v) => v == null || v.isEmpty ? 'Informe sua senha' : null,
+                      onFieldSubmitted: (_) => _login(),
                     ),
                     const SizedBox(height: 25),
-                    ButtonGlobal(
-                      text: 'Entrar',
-                      color: const Color(0xFF6A5AE0),
-                      colortext: Colors.white,
-                      icons: Icons.login,
-                      onTap: () => _login(context),
-                    ),
+                    _loading
+                        ? const CircularProgressIndicator(color: Color(0xFF6A5AE0))
+                        : ButtonGlobal(
+                            text: 'Entrar',
+                            color: const Color(0xFF6A5AE0),
+                            colortext: Colors.white,
+                            icons: Icons.login,
+                            onTap: _login,
+                          ),
                     const SizedBox(height: 15),
                     TextButton(
-                      onPressed: () {}, // TODO: reset de senha
+                      onPressed: () {},
                       child: const Text('Esqueceu a senha?', style: TextStyle(color: Colors.grey)),
                     ),
                     Row(
@@ -135,7 +149,7 @@ class LoginScreen extends StatelessWidget {
                         GestureDetector(
                           onTap: () => Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (_) => CadastroScreen()),
+                            MaterialPageRoute(builder: (_) => const CadastroScreen()),
                           ),
                           child: const Text(
                             'Criar conta',
