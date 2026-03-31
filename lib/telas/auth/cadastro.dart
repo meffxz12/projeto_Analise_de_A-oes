@@ -54,7 +54,7 @@ Future<void> _cadastrar() async {
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const MainNavegacao()),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );
   } catch (e) {
@@ -142,8 +142,8 @@ Future<void> _cadastrar() async {
                         prefixicon: Icons.lock,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Informe sua senha';
-                          if (v.length < 8 || !RegExp(r'[A-Z]').hasMatch(v) || !RegExp(r'[0-9]').hasMatch(v)) {
-                            return 'Mín. 8 caracteres, 1 maiúscula e 1 número';
+                          if (v.length < 6) {
+                            return 'Mín. 6 caracteres';
                           }
                           return null;
                         },
