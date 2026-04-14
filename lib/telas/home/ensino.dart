@@ -1,9 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/componentes/videocard.dart';
+import 'package:meu_apli/services/apiservice.dart';
+import 'package:meu_apli/services/apiservice.dart';
 
-class EnsinoScreen extends StatelessWidget {
+class EnsinoScreen extends StatefulWidget {
   const EnsinoScreen({super.key});
+
+  @override
+  State<EnsinoScreen> createState() => _EnsinoScreenState();
+}
+
+class _EnsinoScreenState extends State<EnsinoScreen> {
+  late Future<List<dynamic>> _videosFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _videosFuture = ApiService.listarVideos();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,34 +65,6 @@ class EnsinoScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    // ── BOTÕES DE CATEGORIA ───────────────────
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              _categoriaBtn('Aulas', Icons.play_circle_rounded, const Color(0xFF6A5AE0)),
-                              const SizedBox(width: 10),
-                              _categoriaBtn('Artigos', Icons.article_rounded, Colors.blueGrey),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              _categoriaBtn('Glossário', Icons.menu_book_rounded, const Color(0xFF1B8A5A)),
-                              const SizedBox(width: 10),
-                              _categoriaBtn('Quiz', Icons.quiz_rounded, Colors.orange),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -87,30 +74,74 @@ class EnsinoScreen extends StatelessWidget {
               // ── VÍDEOS ────────────────────────────────────────
               _sectionCard(
                 title: 'Vídeos',
-                child: const Column(
-                  children: [
-                    VideoCard(title: 'Como analisar ações', videoId: 'bkcMlHEtXsI', duration: '17:10'),
-                    SizedBox(height: 10),
-                    VideoCard(title: 'O que são fundos imobiliários?', videoId: 'vZ64S8dFpEM', duration: '9:54'),
-                    SizedBox(height: 10),
-                    VideoCard(title: 'Análise Técnica para Iniciantes', videoId: '1tbjXu6oHqI', duration: '10:08'),
-                  ],
-                ),
-              ),
+                child: FutureBuilder<List<dynamic>>(
+                  future: _videosFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
 
-              const SizedBox(height: 16),
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.wifi_off_rounded, color: Colors.grey, size: 36),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Não foi possível carregar os vídeos',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: () => setState(() {
+                                  _videosFuture = ApiService.listarVideos();
+                                }),
+                                child: const Text('Tentar novamente'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
 
-              // ── ARTIGOS ───────────────────────────────────────
-              _sectionCard(
-                title: 'Artigos',
-                child: Column(
-                  children: [
-                    _artigoCard('Noções Básicas de Investimentos', Icons.lightbulb_rounded, const Color(0xFF6A5AE0)),
-                    const SizedBox(height: 10),
-                    _artigoCard('Entendendo o Mercado de Ações', Icons.show_chart_rounded, const Color(0xFF1B8A5A)),
-                    const SizedBox(height: 10),
-                    _artigoCard('O que são Fundos Imobiliários?', Icons.apartment_rounded, Colors.orange),
-                  ],
+                    final videos = snapshot.data!;
+                    if (videos.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Text(
+                            'Nenhum vídeo disponível no momento.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      children: List.generate(videos.length, (index) {
+                        final video = videos[index];
+                        final videoId = _extrairVideoId(video['url'] ?? '');
+
+                        return Column(
+                          children: [
+                            VideoCard(
+                              title: video['titulo'] ?? 'Sem título',
+                              videoId: videoId,
+                              duration: _formatarDuracao(video['duracao']),
+                            ),
+                            if (index < videos.length - 1) const SizedBox(height: 10),
+                          ],
+                        );
+                      }),
+                    );
+                  },
                 ),
               ),
 
@@ -122,29 +153,22 @@ class EnsinoScreen extends StatelessWidget {
     );
   }
 
-  Widget _categoriaBtn(String title, IconData icon, Color cor) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-        decoration: BoxDecoration(
-          color: cor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: cor, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(fontWeight: FontWeight.w600, color: cor),
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios_rounded, size: 13, color: cor.withOpacity(0.6)),
-          ],
-        ),
-      ),
-    );
+  String _extrairVideoId(String url) {
+    try {
+      final uri = Uri.parse(url);
+      if (uri.host.contains('youtu.be')) return uri.pathSegments.first;
+      return uri.queryParameters['v'] ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _formatarDuracao(dynamic duracao) {
+    if (duracao == null) return '';
+    final int seg = duracao is int ? duracao : int.tryParse('$duracao') ?? 0;
+    final int min = seg ~/ 60;
+    final int s = seg % 60;
+    return '$min:${s.toString().padLeft(2, '0')}';
   }
 
   Widget _sectionCard({required String title, required Widget child}) {
@@ -162,34 +186,6 @@ class EnsinoScreen extends StatelessWidget {
           Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 14),
           child,
-        ],
-      ),
-    );
-  }
-
-  Widget _artigoCard(String title, IconData icon, Color cor) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cor.withOpacity(0.07),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cor.withOpacity(0.15)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: cor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: cor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ),
-          Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[400]),
         ],
       ),
     );

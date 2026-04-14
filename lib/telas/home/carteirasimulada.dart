@@ -84,7 +84,7 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
               controller: qtdCtrl,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: 'Quantidade',
+                labelText: 'Quantidade de ações',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -185,7 +185,7 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Patrimônio total',
+                                'Patrimônio simulado',
                                 style: TextStyle(color: Colors.grey[500], fontSize: 13),
                               ),
                               const SizedBox(height: 6),
@@ -285,9 +285,8 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
 
   Widget _ativoCard(dynamic ativo) {
     final codigo = ativo['codigo']?.toString() ?? '';
-    final nome = ativo['nome']?.toString() ?? codigo;
     final preco = (ativo['preco_atual'] ?? ativo['preco'] ?? 0).toDouble();
-    final qtd = (ativo['quantidade'] ?? 0).toInt();
+    final qtd = (ativo['quantidade'] ?? 0).toDouble();
     final variacao = (ativo['variacao'] ?? ativo['change'] ?? 0).toDouble();
     final total = preco * qtd;
     final itemId = ativo['id'] as int?;
@@ -295,6 +294,11 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
     final positivo = variacao >= 0;
     final cor = positivo ? const Color(0xFF1B8A5A) : const Color(0xFFCC2929);
     final corFundo = positivo ? const Color(0xFFE6F4ED) : const Color(0xFFFFEBEB);
+
+    // Formata quantidade: se for inteiro exibe sem decimal
+    final qtdFormatada = qtd == qtd.truncateToDouble()
+        ? qtd.toInt().toString()
+        : qtd.toStringAsFixed(2);
 
     return Dismissible(
       key: Key(codigo + qtd.toString()),
@@ -347,7 +351,7 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                 children: [
                   Text(codigo, style: const TextStyle(fontWeight: FontWeight.bold)),
                   Text(
-                    '$qtd cotas · R\$ ${preco.toStringAsFixed(2)}',
+                    '$qtdFormatada ações · R\$ ${preco.toStringAsFixed(2)}',
                     style: TextStyle(color: Colors.grey[500], fontSize: 12),
                   ),
                 ],

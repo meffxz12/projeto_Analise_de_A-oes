@@ -129,7 +129,8 @@ Future<void> _cadastrar() async {
                         prefixicon: Icons.email,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Informe seu email';
-                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) return 'Email inválido';
+                          if (!v.endsWith('@aluno.unb.br')) return 'Use email institucional';
+        
                           return null;
                         },
                       ),
