@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/services/apiservice.dart';
+import 'package:meu_apli/telas/perfilusuario.dart';
 
 class FavoritosScreen extends StatefulWidget {
   const FavoritosScreen({super.key});
@@ -78,8 +79,8 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Row(
+                children: [
+                  const Row(
                     children: [
                       Icon(Icons.favorite_rounded, color: Colors.white),
                       SizedBox(width: 10),
@@ -93,10 +94,22 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
                       ),
                     ],
                   ),
-                  CircleAvatar(
-                    backgroundColor: Colors.white24,
-                    child: Icon(Icons.person_rounded, color: Colors.white),
-                  ),
+                 InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                 MaterialPageRoute(
+                  builder: (context) => PerfilScreen(),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(20), // Para o efeito de clique ser circular
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.white24,
+              child: Icon(Icons.person_rounded, color: Colors.white),
+            ),
+          ),
                 ],
               ),
             ),

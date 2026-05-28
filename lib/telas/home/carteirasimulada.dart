@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/services/apiservice.dart';
+import 'package:meu_apli/telas/perfilusuario.dart';
 
 class CarteiraScreen extends StatefulWidget {
   const CarteiraScreen({super.key});
@@ -149,8 +150,8 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
-                      Row(
+                    children: [
+                      const Row(
                         children: [
                           Icon(Icons.account_balance_wallet_rounded, color: Colors.white),
                           SizedBox(width: 10),
@@ -164,10 +165,22 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                           ),
                         ],
                       ),
-                      CircleAvatar(
-                        backgroundColor: Colors.white24,
-                        child: Icon(Icons.person_rounded, color: Colors.white),
-                      ),
+                     InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PerfilScreen(),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(20), // Para o efeito de clique ser circular
+            child: const CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.white24,
+              child: Icon(Icons.person_rounded, color: Colors.white),
+            ),
+          ),
                     ],
                   ),
                   const SizedBox(height: 20),

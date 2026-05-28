@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:meu_apli/navegacao/navegacaotelas.dart';
 import 'package:meu_apli/telas/auth/cadastro.dart';
+import 'package:meu_apli/telas/home/ensino.dart';
 import 'package:meu_apli/telas/home/hometela.dart';
+import 'package:meu_apli/telas/perfilusuario.dart';
 import 'package:meu_apli/telas/splash_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: "env");
   runApp(const MyApp());
 }
 
@@ -23,7 +27,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const CadastroScreen(),
+      home: const MainNavegacao(),
     );
   }
 }

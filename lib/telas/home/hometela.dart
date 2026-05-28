@@ -3,6 +3,9 @@ import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/componentes/opcaocard.dart';
 import 'package:meu_apli/componentes/videocard.dart';
 import 'package:meu_apli/componentes/grafico.dart';
+import 'package:meu_apli/telas/fundos_screen.dart';
+import 'package:meu_apli/telas/home/acoes_screen.dart';
+import 'package:meu_apli/telas/perfilusuario.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -16,7 +19,7 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             children: [
               // ── TOPO ─────────────────────────────────────────
-              _buildHeader(),
+              _buildHeader(context),
 
               const SizedBox(height: 12),
 
@@ -35,7 +38,14 @@ class HomeScreen extends StatelessWidget {
                     Expanded(
                       child: OpcaoCard(
                         text: 'Fundos',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FundosScreen(),
+                            ),
+                          );
+                        },
                         color: CoresGlobais.botao2,
                         textColor: Colors.white,
                         icon: Icons.pie_chart_rounded,
@@ -45,7 +55,14 @@ class HomeScreen extends StatelessWidget {
                     Expanded(
                       child: OpcaoCard(
                         text: 'Ações',
-                        onTap: () {},
+                        onTap: () {
+                            Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AcoesScreen(),
+                            ),
+                          );
+                        },
                         color: CoresGlobais.botao2,
                         textColor: Colors.white,
                         icon: Icons.show_chart_rounded,
@@ -84,7 +101,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -116,11 +133,23 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.person_rounded, color: Colors.white),
+             InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PerfilScreen(),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(20), // Para o efeito de clique ser circular
+            child: const CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.white24,
+              child: Icon(Icons.person_rounded, color: Colors.white),
+            ),
           ),
+
         ],
       ),
     );
