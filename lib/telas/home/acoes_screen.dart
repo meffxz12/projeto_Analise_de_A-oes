@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:meu_apli/cores/coresglobais.dart';
+import 'package:meu_apli/services/apiservice.dart';
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 class Acao {
@@ -38,7 +39,7 @@ class AcoesScreen extends StatefulWidget {
 }
 
 class _AcoesScreenState extends State<AcoesScreen> {
- final _token = dotenv.env['BRAPI_TOKEN'];
+  final _token = dotenv.env['BRAPI_TOKEN'];
 
   List<Acao> _lista = [];
   List<Acao> _filtrada = [];
@@ -47,12 +48,16 @@ class _AcoesScreenState extends State<AcoesScreen> {
   String _busca = '';
   String _filtro = 'Todos';
 
+  // códigos já favoritados (pra estrela aparecer preenchida)
+  final Set<String> _favoritos = {};
+
   final _buscaCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _carregar();
+    _carregarFavoritos();
     _buscaCtrl.addListener(() {
       setState(() {
         _busca = _buscaCtrl.text.trim().toUpperCase();
@@ -88,6 +93,54 @@ class _AcoesScreenState extends State<AcoesScreen> {
       });
     } catch (e) {
       setState(() { _erro = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _carregarFavoritos() async {
+    try {
+      final favoritos = await ApiService.listarFavoritosAcoes();
+      if (!mounted) return;
+      setState(() {
+        _favoritos
+          ..clear()
+          ..addAll(favoritos.map((f) => (f['codigo'] ?? '').toString()));
+      });
+    } catch (_) {
+      // se falhar, só não mostra estrela preenchida — não bloqueia a tela
+    }
+  }
+
+  Future<void> _toggleFavorito(String codigo) async {
+    final jaFavoritado = _favoritos.contains(codigo);
+
+    // atualização otimista — já reflete na UI antes da resposta da API
+    setState(() {
+      if (jaFavoritado) {
+        _favoritos.remove(codigo);
+      } else {
+        _favoritos.add(codigo);
+      }
+    });
+
+    try {
+      if (jaFavoritado) {
+        await ApiService.removerFavoritoAcao(codigo);
+      } else {
+        await ApiService.adicionarFavoritoAcao(codigo);
+      }
+    } catch (e) {
+      // reverte se a API falhar
+      if (!mounted) return;
+      setState(() {
+        if (jaFavoritado) {
+          _favoritos.add(codigo);
+        } else {
+          _favoritos.remove(codigo);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
     }
   }
 
@@ -129,7 +182,6 @@ class _AcoesScreenState extends State<AcoesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🔹 LINHA DO TOPO (SETA + TÍTULO + AVATAR)
                   Row(
                     children: [
                       IconButton(
@@ -146,11 +198,9 @@ class _AcoesScreenState extends State<AcoesScreen> {
                           ),
                         ),
                       ),
-                      
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // ── BARRA DE BUSCA ────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Container(
@@ -172,7 +222,6 @@ class _AcoesScreenState extends State<AcoesScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // ── FILTROS ───────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Row(
@@ -236,6 +285,7 @@ class _AcoesScreenState extends State<AcoesScreen> {
     final pos = a.variacao >= 0;
     final cor = pos ? const Color(0xFF1B8A5A) : const Color(0xFFCC2929);
     final corFundo = pos ? const Color(0xFFE6F4ED) : const Color(0xFFFFEBEB);
+    final favoritado = _favoritos.contains(a.codigo);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -310,6 +360,15 @@ class _AcoesScreenState extends State<AcoesScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => _toggleFavorito(a.codigo),
+            child: Icon(
+              favoritado ? Icons.star_rounded : Icons.star_outline_rounded,
+              color: favoritado ? Colors.amber : Colors.grey[400],
+              size: 24,
+            ),
           ),
         ],
       ),

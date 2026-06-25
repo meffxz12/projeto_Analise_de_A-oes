@@ -22,12 +22,21 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
   }
 
   Future<void> _carregar() async {
-    setState(() { _loading = true; _erro = null; });
+    setState(() {
+      _loading = true;
+      _erro = null;
+    });
     try {
       final data = await ApiService.buscarCarteiraAtualizada();
-      setState(() { _ativos = data; _loading = false; });
+      setState(() {
+        _ativos = data;
+        _loading = false;
+      });
     } catch (e) {
-      setState(() { _erro = e.toString(); _loading = false; });
+      setState(() {
+        _erro = e.toString();
+        _loading = false;
+      });
     }
   }
 
@@ -43,10 +52,13 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
     try {
       await ApiService.removerAtivoCarteira(itemId);
       await _carregar();
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erro ao remover ativo')),
-      );
+    } catch (e) {
+      debugPrint('Erro ao adicionar ativo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
     }
   }
 
@@ -62,7 +74,12 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          MediaQuery.of(ctx).viewInsets.bottom + 20,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,7 +94,9 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
               textCapitalization: TextCapitalization.characters,
               decoration: InputDecoration(
                 labelText: 'Código (ex: PETR4)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 14),
@@ -86,7 +105,9 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 labelText: 'Quantidade de ações',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -96,7 +117,9 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6A5AE0),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () async {
                   final codigo = codigoCtrl.text.trim().toUpperCase();
@@ -110,14 +133,19 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                   } catch (_) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Erro ao adicionar ativo')),
+                        const SnackBar(
+                          content: Text('Erro ao adicionar ativo'),
+                        ),
                       );
                     }
                   }
                 },
                 child: const Text(
                   'Adicionar',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -153,7 +181,10 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.account_balance_wallet_rounded, color: Colors.white),
+                          Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: Colors.white,
+                          ),
                           SizedBox(width: 10),
                           Text(
                             'Carteira Simulada',
@@ -165,22 +196,27 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                           ),
                         ],
                       ),
-                     InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PerfilScreen(),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(20), // Para o efeito de clique ser circular
-            child: const CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.white24,
-              child: Icon(Icons.person_rounded, color: Colors.white),
-            ),
-          ),
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PerfilScreen(),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(
+                          20,
+                        ), // Para o efeito de clique ser circular
+                        child: const CircleAvatar(
+                          radius: 20,
+                          backgroundColor: Colors.white24,
+                          child: Icon(
+                            Icons.person_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -199,7 +235,10 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                             children: [
                               Text(
                                 'Patrimônio simulado',
-                                style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 13,
+                                ),
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -213,7 +252,10 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 '${_ativos.length} ativo${_ativos.length != 1 ? 's' : ''}',
-                                style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -251,44 +293,64 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _erro != null
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.error_outline, color: Colors.grey[400], size: 40),
-                              const SizedBox(height: 8),
-                              Text('Erro ao carregar', style: TextStyle(color: Colors.grey[500])),
-                              TextButton(onPressed: _carregar, child: const Text('Tentar novamente')),
-                            ],
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Colors.grey[400],
+                            size: 40,
                           ),
-                        )
-                      : _ativos.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.account_balance_wallet_outlined, size: 56, color: Colors.grey[300]),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Carteira vazia',
-                                    style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Toque em Adicionar para começar',
-                                    style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: _carregar,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.symmetric(horizontal: 15),
-                                itemCount: _ativos.length,
-                                itemBuilder: (context, i) => _ativoCard(_ativos[i]),
-                              ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Erro ao carregar',
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                          TextButton(
+                            onPressed: _carregar,
+                            child: const Text('Tentar novamente'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _ativos.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 56,
+                            color: Colors.grey[300],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Carteira vazia',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 16,
                             ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Toque em Adicionar para começar',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _carregar,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        itemCount: _ativos.length,
+                        itemBuilder: (context, i) => _ativoCard(_ativos[i]),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -306,7 +368,9 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
 
     final positivo = variacao >= 0;
     final cor = positivo ? const Color(0xFF1B8A5A) : const Color(0xFFCC2929);
-    final corFundo = positivo ? const Color(0xFFE6F4ED) : const Color(0xFFFFEBEB);
+    final corFundo = positivo
+        ? const Color(0xFFE6F4ED)
+        : const Color(0xFFFFEBEB);
 
     // Formata quantidade: se for inteiro exibe sem decimal
     final qtdFormatada = qtd == qtd.truncateToDouble()
@@ -335,7 +399,13 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2))],
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -362,7 +432,10 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(codigo, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    codigo,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   Text(
                     '$qtdFormatada ações · R\$ ${preco.toStringAsFixed(2)}',
                     style: TextStyle(color: Colors.grey[500], fontSize: 12),
@@ -379,11 +452,21 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: corFundo, borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: corFundo,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: Text(
                     '${positivo ? '+' : ''}${variacao.toStringAsFixed(2)}%',
-                    style: TextStyle(color: cor, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: cor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],

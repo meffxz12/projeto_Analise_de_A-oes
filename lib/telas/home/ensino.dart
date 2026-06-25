@@ -184,32 +184,40 @@ class _EnsinoScreenState extends State<EnsinoScreen>
   }
 
   // ── ABA VÍDEOS ─────────────────────────────────────────────────────────────
-  Widget _abaVideos() {
-    return ListView(
-      padding: const EdgeInsets.all(15),
-      children: const [
-        VideoCard(
-            title: 'Como analisar ações',
-            videoId: 'bkcMlHEtXsI',
-            duration: '17:10'),
-        SizedBox(height: 10),
-        VideoCard(
-            title: 'O que são fundos imobiliários?',
-            videoId: 'vZ64S8dFpEM',
-            duration: '9:54'),
-        SizedBox(height: 10),
-        VideoCard(
-            title: 'Análise Técnica para Iniciantes',
-            videoId: '1tbjXu6oHqI',
-            duration: '10:08'),
-        SizedBox(height: 10),
-        VideoCard(
-            title: 'Como montar uma carteira diversificada',
-            videoId: 'bkcMlHEtXsI', // substituir pelo ID real
-            duration: '14:22'),
-      ],
-    );
-  }
+
+Widget _abaVideos() {
+  return ListView(
+    padding: const EdgeInsets.all(15),
+    children: const [
+      VideoCard(
+        title: 'Como analisar ações',
+        videoId: 'bkcMlHEtXsI',
+        duration: '17:10',
+      ),
+      SizedBox(height: 10),
+
+      VideoCard(
+        title: 'O que são fundos imobiliários?',
+        videoId: 'vZ64S8dFpEM',
+        duration: '9:54',
+      ),
+      SizedBox(height: 10),
+
+      VideoCard(
+        title: 'Análise Técnica para Iniciantes',
+        videoId: '1tbjXu6oHqI',
+        duration: '10:08',
+      ),
+      SizedBox(height: 10),
+
+      VideoCard(
+        title: 'Como montar uma carteira diversificada',
+        videoId: 'bkcMlHEtXsI',
+        duration: '14:22',
+      ),
+    ],
+  );
+}
 
   // ── ABA LEITURA (Antigos Artigos) ──────────────────────────────────────────
   Widget _abaLeitura() {

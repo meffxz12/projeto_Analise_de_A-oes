@@ -15,32 +15,35 @@ class VideoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final thumbnail =
-        "https://img.youtube.com/vi/$videoId/0.jpg";
+    final thumbnail = "https://img.youtube.com/vi/$videoId/0.jpg";
 
     return GestureDetector(
       onTap: () async {
-        final url = Uri.parse(
-            "https://www.youtube.com/watch?v=$videoId");
+        final url =
+            Uri.parse("https://www.youtube.com/watch?v=$videoId");
 
-       await launchUrl(url, mode: LaunchMode.externalApplication);
+        if (await canLaunchUrl(url)) {
+          await launchUrl(
+            url,
+            mode: LaunchMode.externalApplication,
+          );
+        }
       },
-      child:  Container(
+      child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Colors.black12,
               blurRadius: 6,
-              offset: const Offset(0, 3),
+              offset: Offset(0, 3),
             ),
           ],
         ),
         child: Row(
           children: [
-           
             Stack(
               children: [
                 ClipRRect(
@@ -53,14 +56,27 @@ class VideoCard extends StatelessWidget {
                     width: 140,
                     height: 80,
                     fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 140,
+                        height: 80,
+                        color: Colors.grey,
+                        child: const Icon(
+                          Icons.play_circle_fill,
+                          size: 40,
+                        ),
+                      );
+                    },
                   ),
                 ),
                 Positioned(
                   bottom: 6,
                   right: 6,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.7),
                       borderRadius: BorderRadius.circular(6),
@@ -74,13 +90,10 @@ class VideoCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                )
+                ),
               ],
             ),
-
             const SizedBox(width: 12),
-
-       
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -92,7 +105,7 @@ class VideoCard extends StatelessWidget {
                   ),
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),

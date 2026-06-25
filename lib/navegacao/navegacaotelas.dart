@@ -1,9 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/telas/home/hometela.dart';
 import 'package:meu_apli/telas/home/ensino.dart';
 import 'package:meu_apli/telas/home/carteirasimulada.dart';
 import 'package:meu_apli/telas/home/favoritos.dart';
+import 'package:meu_apli/services/apiservice.dart';
+import 'package:meu_apli/services/local_notification_helper.dart';
+import 'package:meu_apli/services/notificacao_websocket_service.dart';
+import 'package:meu_apli/services/navigation_service.dart';
+import 'package:meu_apli/models/notificacao_model.dart';
 
 class MainNavegacao extends StatefulWidget {
   const MainNavegacao({super.key});
@@ -21,6 +28,59 @@ class _MainNavegacaoState extends State<MainNavegacao> {
     CarteiraScreen(),
     FavoritosScreen(),
   ];
+
+  NotificacaoWebSocketService? _wsService;
+  StreamSubscription<NotificacaoModel>? _wsSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _iniciarNotificacoes();
+  }
+
+  Future<void> _iniciarNotificacoes() async {
+    final usuarioId = await ApiService.getUsuarioId();
+
+    if (usuarioId == null) {
+      // Sem token válido — não tenta conectar o WebSocket.
+      debugPrint('[WS] usuarioId nulo, não foi possível conectar.');
+      return;
+    }
+
+    await LocalNotificationHelper.instance.inicializar();
+
+    final wsBaseUrl = ApiService.baseUrl
+        .replaceFirst('https://', 'wss://')
+        .replaceFirst('http://', 'ws://');
+
+    _wsService = NotificacaoWebSocketService(
+      baseUrl: wsBaseUrl,
+      usuarioId: usuarioId,
+      tokenProvider: ApiService.getToken,
+      onAuthFailure: () async {
+        final renovou = await ApiService.tentarRenovarToken();
+        if (renovou) {
+          _wsService?.conectar();
+        } else {
+          debugPrint('[WS] Sessão expirada, redirecionando pro login.');
+          redirecionarParaLogin();
+        }
+      },
+    );
+
+    _wsSubscription = _wsService!.notificacoes.listen((notificacao) {
+      LocalNotificationHelper.instance.mostrar(notificacao);
+    });
+
+    _wsService!.conectar();
+  }
+
+  @override
+  void dispose() {
+    _wsSubscription?.cancel();
+    _wsService?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

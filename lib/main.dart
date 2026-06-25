@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:meu_apli/navegacao/navegacaotelas.dart';
-import 'package:meu_apli/telas/auth/cadastro.dart';
-import 'package:meu_apli/telas/home/ensino.dart';
-import 'package:meu_apli/telas/home/hometela.dart';
-import 'package:meu_apli/telas/perfilusuario.dart';
+import 'package:meu_apli/services/navigation_service.dart';
 import 'package:meu_apli/telas/splash_screen.dart';
 
 Future<void> main() async {
@@ -19,15 +15,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Análise de Ações',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6A5AE0),
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6A5AE0)),
         useMaterial3: true,
       ),
-      home: const MainNavegacao(),
+      home: const SplashScreen(),
     );
   }
 }

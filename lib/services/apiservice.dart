@@ -1,16 +1,22 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:meu_apli/services/navigation_service.dart';
 
 class ApiService {
   static const String baseUrl =
       "https://subdermic-semiluminously-beckie.ngrok-free.dev";
 
-  // ── TOKEN ────────────────────────────────────────────────
+  // ── SESSÃO (TOKENS) ─────────────────────────────────────
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('access_token');
+  }
+
+  static Future<String?> getRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('refresh_token');
   }
 
   static Future<void> salvarToken(String token) async {
@@ -18,9 +24,43 @@ class ApiService {
     await prefs.setString('access_token', token);
   }
 
-  static Future<void> limparToken() async {
+  static Future<void> salvarRefreshToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('refresh_token', token);
+  }
+
+  static Future<void> limparSessao() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('access_token');
+    await prefs.remove('refresh_token');
+  }
+
+  // Mantido por compatibilidade, caso algo no app ainda chame limparToken().
+  static Future<void> limparToken() => limparSessao();
+
+  static int? _usuarioIdFromToken(String token) {
+    try {
+      final partes = token.split('.');
+      if (partes.length != 3) return null;
+
+      final payloadNormalizado = base64Url.normalize(partes[1]);
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(payloadNormalizado)),
+      ) as Map<String, dynamic>;
+
+      final sub = payload['sub'];
+      if (sub == null) return null;
+
+      return int.tryParse(sub.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<int?> getUsuarioId() async {
+    final token = await getToken();
+    if (token == null) return null;
+    return _usuarioIdFromToken(token);
   }
 
   static Future<Map<String, String>> _headers({bool auth = false}) async {
@@ -32,21 +72,106 @@ class ApiService {
     return headers;
   }
 
+  /// Tenta trocar o refresh_token salvo por um access_token novo.
+  /// Retorna true se conseguiu (e já salvou o novo token).
+  static Future<bool> tentarRenovarToken() async {
+    final refresh = await getRefreshToken();
+    if (refresh == null) return false;
+
+    try {
+      final url = Uri.parse('$baseUrl/auth/refresh');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $refresh',
+        },
+      );
+
+      if (response.statusCode != 200) return false;
+
+      final data = jsonDecode(response.body);
+      final novoAccessToken = data['access_token'];
+      if (novoAccessToken == null) return false;
+
+      await salvarToken(novoAccessToken);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Wrapper central de todas as chamadas HTTP. Quando uma rota autenticada
+  /// (`auth: true`) responde 401, tenta renovar o access_token e refaz a
+  /// chamada UMA vez. Se a renovação falhar, limpa a sessão e manda o
+  /// usuário pro login.
+  static Future<http.Response> _enviarRequisicao(
+    String metodo,
+    Uri url, {
+    Map<String, dynamic>? body,
+    bool auth = false,
+    bool tentandoNovamente = false,
+  }) async {
+    final headers = await _headers(auth: auth);
+    final bodyJson = body != null ? jsonEncode(body) : null;
+
+    http.Response response;
+    switch (metodo) {
+      case 'GET':
+        response = await http.get(url, headers: headers);
+        break;
+      case 'POST':
+        response = await http.post(url, headers: headers, body: bodyJson);
+        break;
+      case 'PUT':
+        response = await http.put(url, headers: headers, body: bodyJson);
+        break;
+      case 'DELETE':
+        response = await http.delete(url, headers: headers);
+        break;
+      default:
+        throw Exception('Método HTTP não suportado: $metodo');
+    }
+
+    if (response.statusCode == 401 && auth && !tentandoNovamente) {
+      final renovou = await tentarRenovarToken();
+
+      if (renovou) {
+        return _enviarRequisicao(
+          metodo,
+          url,
+          body: body,
+          auth: auth,
+          tentandoNovamente: true,
+        );
+      } else {
+        await limparSessao();
+        redirecionarParaLogin();
+      }
+    }
+
+    return response;
+  }
+
   // ── AUTH ─────────────────────────────────────────────────
 
   static Future<String> login(String email, String senha) async {
     final url = Uri.parse('$baseUrl/auth/login');
-    final response = await http.post(
+    final response = await _enviarRequisicao(
+      'POST',
       url,
-      headers: await _headers(),
-      body: jsonEncode({'email_institucional': email, 'senha': senha}),
+      body: {'email_institucional': email, 'senha': senha},
     );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      final token = data['access_token'];
-      await salvarToken(token);
-      return token;
+      final accessToken = data['access_token'];
+      final refreshToken = data['refresh_token'];
+
+      await salvarToken(accessToken);
+      if (refreshToken != null) await salvarRefreshToken(refreshToken);
+
+      return accessToken;
     } else {
       throw Exception('Login falhou: ${response.statusCode}');
     }
@@ -54,14 +179,14 @@ class ApiService {
 
   static Future<void> criarConta(String nome, String email, String senha) async {
     final url = Uri.parse('$baseUrl/auth/criar_conta');
-    final response = await http.post(
+    final response = await _enviarRequisicao(
+      'POST',
       url,
-      headers: await _headers(),
-      body: jsonEncode({
+      body: {
         'nome': nome,
         'email_institucional': email,
         'senha': senha,
-      }),
+      },
     );
 
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -72,15 +197,19 @@ class ApiService {
 
   static Future<void> logout() async {
     final url = Uri.parse('$baseUrl/config/logout');
-    await http.post(url, headers: await _headers(auth: true));
-    await limparToken();
+    try {
+      await _enviarRequisicao('POST', url, auth: true);
+    } catch (_) {
+      // mesmo se a chamada falhar (sem internet, etc), limpa local de qualquer forma
+    }
+    await limparSessao();
   }
 
   // ── MERCADO ──────────────────────────────────────────────
 
   static Future<List<dynamic>> buscarAcoes() async {
     final url = Uri.parse('$baseUrl/mercado/acoes');
-    final response = await http.get(url);
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Erro: ${response.statusCode}');
@@ -88,7 +217,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> buscarIndices() async {
     final url = Uri.parse('$baseUrl/mercado/indices');
-    final response = await http.get(url);
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Erro: ${response.statusCode}');
@@ -99,7 +228,7 @@ class ApiService {
     String periodo,
   ) async {
     final url = Uri.parse('$baseUrl/mercado/grafico/$simbolo?periodo=$periodo');
-    final response = await http.get(url);
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
       return List<Map<String, dynamic>>.from(jsonDecode(response.body));
@@ -111,7 +240,7 @@ class ApiService {
 
   static Future<List<dynamic>> listarFavoritosAcoes() async {
     final url = Uri.parse('$baseUrl/favoritos/acoes');
-    final response = await http.get(url, headers: await _headers(auth: true));
+    final response = await _enviarRequisicao('GET', url, auth: true);
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Erro: ${response.statusCode}');
@@ -119,10 +248,11 @@ class ApiService {
 
   static Future<void> adicionarFavoritoAcao(String codigo) async {
     final url = Uri.parse('$baseUrl/favoritos/acoes');
-    final response = await http.post(
+    final response = await _enviarRequisicao(
+      'POST',
       url,
-      headers: await _headers(auth: true),
-      body: jsonEncode({'codigo': codigo}),
+      body: {'codigo': codigo},
+      auth: true,
     );
 
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -132,7 +262,7 @@ class ApiService {
 
   static Future<void> removerFavoritoAcao(String codigo) async {
     final url = Uri.parse('$baseUrl/favoritos/acoes/$codigo');
-    final response = await http.delete(url, headers: await _headers(auth: true));
+    final response = await _enviarRequisicao('DELETE', url, auth: true);
 
     if (response.statusCode != 200) {
       throw Exception('Erro ao remover favorito: ${response.statusCode}');
@@ -141,7 +271,7 @@ class ApiService {
 
   static Future<List<dynamic>> listarFavoritosFundos() async {
     final url = Uri.parse('$baseUrl/favoritos/fundos');
-    final response = await http.get(url, headers: await _headers(auth: true));
+    final response = await _enviarRequisicao('GET', url, auth: true);
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Erro: ${response.statusCode}');
@@ -149,10 +279,11 @@ class ApiService {
 
   static Future<void> adicionarFavoritoFundo(String codigo) async {
     final url = Uri.parse('$baseUrl/favoritos/fundos');
-    final response = await http.post(
+    final response = await _enviarRequisicao(
+      'POST',
       url,
-      headers: await _headers(auth: true),
-      body: jsonEncode({'codigo': codigo}),
+      body: {'codigo': codigo},
+      auth: true,
     );
 
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -162,7 +293,7 @@ class ApiService {
 
   static Future<void> removerFavoritoFundo(String codigo) async {
     final url = Uri.parse('$baseUrl/favoritos/fundos/$codigo');
-    final response = await http.delete(url, headers: await _headers(auth: true));
+    final response = await _enviarRequisicao('DELETE', url, auth: true);
 
     if (response.statusCode != 200) {
       throw Exception('Erro ao remover fundo favorito: ${response.statusCode}');
@@ -173,7 +304,7 @@ class ApiService {
 
   static Future<List<dynamic>> buscarCarteiraAtualizada() async {
     final url = Uri.parse('$baseUrl/carteira/simular/atualizado');
-    final response = await http.get(url, headers: await _headers(auth: true));
+    final response = await _enviarRequisicao('GET', url, auth: true);
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Erro: ${response.statusCode}');
@@ -181,10 +312,11 @@ class ApiService {
 
   static Future<void> adicionarAtivoCarteira(String codigo, int quantidade) async {
     final url = Uri.parse('$baseUrl/carteira/simular');
-    final response = await http.post(
+    final response = await _enviarRequisicao(
+      'POST',
       url,
-      headers: await _headers(auth: true),
-      body: jsonEncode({'codigo': codigo, 'quantidade': quantidade}),
+      body: {'codigo': codigo, 'quantidade': quantidade},
+      auth: true,
     );
 
     if (response.statusCode != 200 && response.statusCode != 201) {
@@ -195,10 +327,11 @@ class ApiService {
 
   static Future<void> atualizarAtivoCarteira(int itemId, int quantidade) async {
     final url = Uri.parse('$baseUrl/carteira/simular/$itemId');
-    final response = await http.put(
+    final response = await _enviarRequisicao(
+      'PUT',
       url,
-      headers: await _headers(auth: true),
-      body: jsonEncode({'quantidade': quantidade}),
+      body: {'quantidade': quantidade},
+      auth: true,
     );
 
     if (response.statusCode != 200) {
@@ -208,7 +341,7 @@ class ApiService {
 
   static Future<void> removerAtivoCarteira(int itemId) async {
     final url = Uri.parse('$baseUrl/carteira/simular/$itemId');
-    final response = await http.delete(url, headers: await _headers(auth: true));
+    final response = await _enviarRequisicao('DELETE', url, auth: true);
 
     if (response.statusCode != 200) {
       throw Exception('Erro ao remover ativo: ${response.statusCode}');
@@ -219,7 +352,7 @@ class ApiService {
 
   static Future<List<dynamic>> listarVideos() async {
     final url = Uri.parse('$baseUrl/educacao/videos');
-    final response = await http.get(url);
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Erro ao carregar vídeos: ${response.statusCode}');
@@ -227,7 +360,7 @@ class ApiService {
 
   static Future<List<dynamic>> listarVideosPorTema(String tema) async {
     final url = Uri.parse('$baseUrl/educacao/videos/tema/$tema');
-    final response = await http.get(url);
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Nenhum vídeo encontrado para esse tema');

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:meu_apli/cores/coresglobais.dart';
+import 'package:meu_apli/services/apiservice.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 
@@ -43,13 +44,16 @@ class FundosScreen extends StatefulWidget {
 }
 
 class _FundosScreenState extends State<FundosScreen> {
- final _token = dotenv.env['BRAPI_TOKEN'];
+  final _token = dotenv.env['BRAPI_TOKEN'];
   List<Fundo> _lista = [];
   List<Fundo> _filtrada = [];
   bool _loading = true;
   String? _erro;
   String _busca = '';
   String _ordenar = 'Padrão';
+
+  // códigos já favoritados (pra estrela aparecer preenchida)
+  final Set<String> _favoritos = {};
 
   final _buscaCtrl = TextEditingController();
   Timer? _debounce;
@@ -60,6 +64,7 @@ class _FundosScreenState extends State<FundosScreen> {
   void initState() {
     super.initState();
     _carregar();
+    _carregarFavoritos();
     _buscaCtrl.addListener(() {
       if (_debounce?.isActive ?? false) _debounce!.cancel();
       _debounce = Timer(const Duration(milliseconds: 300), () {
@@ -102,6 +107,54 @@ class _FundosScreenState extends State<FundosScreen> {
     }
   }
 
+  Future<void> _carregarFavoritos() async {
+    try {
+      final favoritos = await ApiService.listarFavoritosFundos();
+      if (!mounted) return;
+      setState(() {
+        _favoritos
+          ..clear()
+          ..addAll(favoritos.map((f) => (f['codigo'] ?? '').toString()));
+      });
+    } catch (_) {
+      // se falhar, só não mostra estrela preenchida — não bloqueia a tela
+    }
+  }
+
+  Future<void> _toggleFavorito(String codigo) async {
+    final jaFavoritado = _favoritos.contains(codigo);
+
+    // atualização otimista — já reflete na UI antes da resposta da API
+    setState(() {
+      if (jaFavoritado) {
+        _favoritos.remove(codigo);
+      } else {
+        _favoritos.add(codigo);
+      }
+    });
+
+    try {
+      if (jaFavoritado) {
+        await ApiService.removerFavoritoFundo(codigo);
+      } else {
+        await ApiService.adicionarFavoritoFundo(codigo);
+      }
+    } catch (e) {
+      // reverte se a API falhar
+      if (!mounted) return;
+      setState(() {
+        if (jaFavoritado) {
+          _favoritos.add(codigo);
+        } else {
+          _favoritos.remove(codigo);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   void _aplicarFiltro() {
     var lista = _lista.where((f) {
       if (_busca.isEmpty) return true;
@@ -139,7 +192,6 @@ class _FundosScreenState extends State<FundosScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🔹 LINHA DO TOPO (SETA + TÍTULO + AVATAR)
                   Row(
                     children: [
                       IconButton(
@@ -156,11 +208,9 @@ class _FundosScreenState extends State<FundosScreen> {
                           ),
                         ),
                       ),
-                   
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // ── BARRA DE BUSCA ────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Container(
@@ -182,7 +232,6 @@ class _FundosScreenState extends State<FundosScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // ── CHIPS DE ORDENAÇÃO ────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: SingleChildScrollView(
@@ -252,6 +301,7 @@ class _FundosScreenState extends State<FundosScreen> {
     final cor = pos ? const Color(0xFF1B8A5A) : const Color(0xFFCC2929);
     final corFundo = pos ? const Color(0xFFE6F4ED) : const Color(0xFFFFEBEB);
     final temDY = f.dividendYield > 0;
+    final favoritado = _favoritos.contains(f.codigo);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -351,6 +401,15 @@ class _FundosScreenState extends State<FundosScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => _toggleFavorito(f.codigo),
+            child: Icon(
+              favoritado ? Icons.star_rounded : Icons.star_outline_rounded,
+              color: favoritado ? Colors.amber : Colors.grey[400],
+              size: 24,
+            ),
           ),
         ],
       ),

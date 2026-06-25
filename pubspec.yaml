@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  web_socket_channel: ^2.4.0
+  flutter_local_notifications: ^17.2.2
 
 
   http: ^1.2.2
