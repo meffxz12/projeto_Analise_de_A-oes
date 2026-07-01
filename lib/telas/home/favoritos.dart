@@ -19,6 +19,9 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
   @override
   void initState() {
     super.initState();
+    ApiService.getToken().then((token) {
+    print('TOKEN ATUAL: $token');
+  });
     _carregar();
   }
 

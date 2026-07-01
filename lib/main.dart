@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:meu_apli/services/navigation_service.dart';
-import 'package:meu_apli/telas/splash_screen.dart';
+import 'package:meu_apli/telas/auth/login.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6A5AE0)),
         useMaterial3: true,
       ),
-      home: const SplashScreen(),
+      home: const LoginScreen(),
     );
   }
 }

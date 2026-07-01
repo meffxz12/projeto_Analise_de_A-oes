@@ -5,7 +5,7 @@ import 'package:meu_apli/services/navigation_service.dart';
 
 class ApiService {
   static const String baseUrl =
-      "https://subdermic-semiluminously-beckie.ngrok-free.dev";
+      "https://lanuginose-unsyllogistically-dianna.ngrok-free.dev";
 
   // ── SESSÃO (TOKENS) ─────────────────────────────────────
 
@@ -215,6 +215,14 @@ class ApiService {
     throw Exception('Erro: ${response.statusCode}');
   }
 
+  static Future<List<dynamic>> buscarFundos() async {
+    final url = Uri.parse('$baseUrl/mercado/fundos');
+    final response = await _enviarRequisicao('GET', url);
+
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    throw Exception('Erro: ${response.statusCode}');
+}
+
   static Future<Map<String, dynamic>> buscarIndices() async {
     final url = Uri.parse('$baseUrl/mercado/indices');
     final response = await _enviarRequisicao('GET', url);
@@ -365,4 +373,30 @@ class ApiService {
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Nenhum vídeo encontrado para esse tema');
   }
+
+
+// ── USUÁRIO ──────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> buscarPerfil() async {
+    final url = Uri.parse('$baseUrl/usuario/me');
+    final response = await _enviarRequisicao('GET', url, auth: true);
+
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    throw Exception('Erro: ${response.statusCode}');
+  }
+
+  static Future<void> atualizarAvatar(String avatar) async {
+    final url = Uri.parse('$baseUrl/usuario/avatar');
+    final response = await _enviarRequisicao(
+      'PUT',
+      url,
+      body: {'avatar': avatar},
+      auth: true,
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Erro ao atualizar avatar: ${response.statusCode}');
+    }
+  }
+
 }
