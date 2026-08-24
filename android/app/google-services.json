@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1037814604190",
+    "project_id": "investserv",
+    "storage_bucket": "investserv.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1037814604190:android:ba321b0d8aa0446042f68f",
+        "android_client_info": {
+          "package_name": "com.example.meu_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVKSKTLJZ91-erg59C26_uH9hZPwWjexc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
