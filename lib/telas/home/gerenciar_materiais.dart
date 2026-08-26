@@ -755,7 +755,7 @@ class _MaterialDialogState
                   ),
                 )
               : const Text(
-                  'Salvar',
+                  'Salvar este material',
                 ),
         ),
       ],
