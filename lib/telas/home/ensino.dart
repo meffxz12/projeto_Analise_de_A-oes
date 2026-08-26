@@ -1,28 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/componentes/videocard.dart';
 import 'package:meu_apli/telas/perfilusuario.dart';
+import 'package:meu_apli/telas/home/gerenciar_videos.dart';
+import 'package:meu_apli/telas/home/centro_ensino_page.dart';
+import 'package:meu_apli/services/apiservice.dart';
 
-// ─── Model para Artigos/Leitura ────────────────────────────────────────────────
+// ============================================================
+// MODEL PARA CONTEÚDOS DE LEITURA
+// ============================================================
+
 class ConteudoLeitura {
+  final int id;
   final String titulo;
   final String descricao;
-  final String tempoEstimado;
-  final IconData icone;
-  final Color cor;
-  final String urlConteudo; // URL ou ID para o conteúdo completo
+  final String tipo;
+  final String arquivo;
+  final String tema;
 
-  const ConteudoLeitura(
-    this.titulo,
-    this.descricao,
-    this.tempoEstimado,
-    this.icone,
-    this.cor,
-    this.urlConteudo,
-  );
+  const ConteudoLeitura({
+    required this.id,
+    required this.titulo,
+    required this.descricao,
+    required this.tipo,
+    required this.arquivo,
+    required this.tema,
+  });
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ============================================================
+// SCREEN
+// ============================================================
+
 class EnsinoScreen extends StatefulWidget {
   const EnsinoScreen({super.key});
 
@@ -34,62 +45,297 @@ class _EnsinoScreenState extends State<EnsinoScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
 
-  // Conteúdo de leitura (antigos artigos, agora mais genéricos)
-  final _conteudosLeitura = const [
-    ConteudoLeitura(
-      'Noções Básicas de Investimentos',
-      'Entenda os conceitos fundamentais antes de investir.',
-      '5 min',
-      Icons.lightbulb_rounded,
-      Color(0xFF6A5AE0),
-      'https://www.exemplo.com/nocoes-basicas', // Exemplo de URL
-    ),
-    ConteudoLeitura(
-      'Como funciona o Mercado de Ações',
-      'Da bolsa de valores ao home broker explicado de forma simples.',
-      '7 min',
-      Icons.show_chart_rounded,
-      Color(0xFF1B8A5A),
-      'https://www.exemplo.com/mercado-acoes', // Exemplo de URL
-    ),
-    ConteudoLeitura(
-      'O que são Fundos Imobiliários?',
-      'Invista em imóveis pagando poucos reais por cota.',
-      '6 min',
-      Icons.apartment_rounded,
-      Colors.orange,
-      'https://www.exemplo.com/fundos-imobiliarios', // Exemplo de URL
-    ),
-    ConteudoLeitura(
-      'Renda Fixa vs Renda Variável',
-      'Descubra as diferenças e quando usar cada uma.',
-      '8 min',
-      Icons.balance_rounded,
-      Color(0xFFCC2929),
-      'https://www.exemplo.com/renda-fixa-variavel', // Exemplo de URL
-    ),
-    ConteudoLeitura(
-      'Diversificação de carteira',
-      'Por que não colocar todos os ovos na mesma cesta.',
-      '6 min',
-      Icons.pie_chart_rounded,
-      Colors.teal,
-      'https://www.exemplo.com/diversificacao', // Exemplo de URL
-    ),
-  ];
+  // ==========================================================
+  // ADMIN
+  // ==========================================================
+
+  bool _isAdmin = false;
+  bool _carregandoAdmin = true;
+
+  // ==========================================================
+  // VÍDEOS
+  // ==========================================================
+
+  List<dynamic> _videos = [];
+
+  bool _carregandoVideos = true;
+
+  String? _erroVideos;
+
+  // ==========================================================
+  // MATERIAIS
+  // ==========================================================
+
+  List<ConteudoLeitura> _materiais = [];
+
+  bool _carregandoMateriais = true;
+
+  String? _erroMateriais;
+
+  // ==========================================================
+  // INIT
+  // ==========================================================
 
   @override
   void initState() {
     super.initState();
-    // Apenas duas abas: Vídeos e Leitura
-    _tab = TabController(length: 2, vsync: this);
+
+    _tab = TabController(
+      length: 2,
+      vsync: this,
+    );
+
+    _verificarAdmin();
+    _carregarVideos();
+    _carregarMateriais();
   }
+
+  // ==========================================================
+  // VERIFICAR ADMIN
+  // ==========================================================
+
+  Future<void> _verificarAdmin() async {
+    try {
+      final admin = await ApiService.isAdmin();
+
+      if (!mounted) return;
+
+      setState(() {
+        _isAdmin = admin;
+        _carregandoAdmin = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isAdmin = false;
+        _carregandoAdmin = false;
+      });
+
+      debugPrint(
+        'Erro ao verificar administrador: $e',
+      );
+    }
+  }
+
+  // ==========================================================
+  // CARREGAR VÍDEOS
+  // ==========================================================
+
+  Future<void> _carregarVideos() async {
+    if (mounted) {
+      setState(() {
+        _carregandoVideos = true;
+        _erroVideos = null;
+      });
+    }
+
+    try {
+      final resultado = await ApiService.listarVideos();
+
+      if (!mounted) return;
+
+      setState(() {
+        _videos = resultado;
+        _carregandoVideos = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _carregandoVideos = false;
+        _erroVideos = e.toString();
+      });
+
+      debugPrint(
+        'Erro ao carregar vídeos: $e',
+      );
+    }
+  }
+
+  // ==========================================================
+  // CARREGAR MATERIAIS
+  // ==========================================================
+
+  Future<void> _carregarMateriais() async {
+    if (mounted) {
+      setState(() {
+        _carregandoMateriais = true;
+        _erroMateriais = null;
+      });
+    }
+
+    try {
+      final resultado = await ApiService.listarMateriais();
+
+      debugPrint('====================================');
+      debugPrint('MATERIAIS RECEBIDOS');
+      debugPrint('$resultado');
+      debugPrint('====================================');
+
+      final materiais = resultado.map<ConteudoLeitura>((item) {
+        // O backend retorna "url", não "arquivo".
+        String url = '';
+
+        if (item['url'] != null) {
+          url = item['url'].toString();
+        }
+
+        // Se a API retornar uma URL relativa,
+        // adicionamos o endereço do backend.
+        if (url.startsWith('/')) {
+          url = '${ApiService.baseUrl}$url';
+        }
+
+        debugPrint(
+          'Material: ${item['titulo']}',
+        );
+
+        debugPrint(
+          'URL original: ${item['url']}',
+        );
+
+        debugPrint(
+          'URL final: $url',
+        );
+
+        return ConteudoLeitura(
+          id: item['id'] ?? 0,
+          titulo: item['titulo'] ?? 'Sem título',
+          descricao: item['descricao'] ?? '',
+          tipo: item['tipo'] ?? 'PDF',
+          arquivo: url,
+          tema: item['tema'] ?? '',
+        );
+      }).toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _materiais = materiais;
+        _carregandoMateriais = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _carregandoMateriais = false;
+        _erroMateriais = e.toString();
+      });
+
+      debugPrint(
+        'Erro ao carregar materiais: $e',
+      );
+    }
+  }
+
+  // ==========================================================
+  // ABRIR MATERIAL
+  // ==========================================================
+
+  Future<void> _abrirMaterial(
+    ConteudoLeitura material,
+  ) async {
+    final urlString = material.arquivo.trim();
+
+    debugPrint('====================================');
+    debugPrint('ABRINDO MATERIAL');
+    debugPrint('Título: ${material.titulo}');
+    debugPrint('URL: $urlString');
+    debugPrint('====================================');
+
+    if (urlString.isEmpty) {
+      debugPrint(
+        'ERRO: URL do material está vazia.',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'O arquivo não possui uma URL válida.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    try {
+      final url = Uri.parse(urlString);
+
+      debugPrint(
+        'URI criada: $url',
+      );
+
+      final podeAbrir = await canLaunchUrl(url);
+
+      debugPrint(
+        'Pode abrir URL: $podeAbrir',
+      );
+
+      if (podeAbrir) {
+        final abriu = await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+        );
+
+        debugPrint(
+          'Resultado do launchUrl: $abriu',
+        );
+
+        if (!abriu && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Não foi possível abrir o arquivo.',
+              ),
+            ),
+          );
+        }
+      } else {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível abrir o arquivo.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        'Erro ao abrir material: $e',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Erro ao abrir arquivo: $e',
+          ),
+        ),
+      );
+    }
+  }
+
+  // ==========================================================
+  // DISPOSE
+  // ==========================================================
 
   @override
   void dispose() {
     _tab.dispose();
+
     super.dispose();
   }
+
+  // ==========================================================
+  // BUILD
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -98,12 +344,22 @@ class _EnsinoScreenState extends State<EnsinoScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // ── HEADER ────────────────────────────────────────
+            // ==================================================
+            // HEADER
+            // ==================================================
+
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              padding: const EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                0,
+              ),
               decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: CoresGlobais.backgrounder),
+                gradient: LinearGradient(
+                  colors: CoresGlobais.backgrounder,
+                ),
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(28),
                   bottomRight: Radius.circular(28),
@@ -112,12 +368,20 @@ class _EnsinoScreenState extends State<EnsinoScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ==========================================
+                  // TÍTULO + BOTÕES
+                  // ==========================================
+
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.school_rounded, color: Colors.white),
+                          Icon(
+                            Icons.school_rounded,
+                            color: Colors.white,
+                          ),
                           SizedBox(width: 10),
                           Text(
                             'Centro de Ensino',
@@ -129,26 +393,70 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                           ),
                         ],
                       ),
-                     InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                 MaterialPageRoute(
-                  builder: (context) => PerfilScreen(),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(20), // Para o efeito de clique ser circular
-            child: CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.white24,
-              child: Icon(Icons.person_rounded, color: Colors.white),
-            ),
-          ),
+
+                      // ======================================
+                      // BOTÕES
+                      // ======================================
+
+                      Row(
+                        children: [
+                          // ADMIN
+                          if (!_carregandoAdmin && _isAdmin)
+                            IconButton(
+                              tooltip:
+                                  'Gerenciar conteúdo',
+                              icon: const Icon(
+                                Icons.admin_panel_settings_rounded,
+                                color: Colors.white,
+                              ),
+                              onPressed: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const CentroEnsinoPage(),
+                                  ),
+                                );
+
+                                _carregarVideos();
+                                _carregarMateriais();
+                              },
+                            ),
+
+                          // PERFIL
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      PerfilScreen(),
+                                ),
+                              );
+                            },
+                            borderRadius:
+                                BorderRadius.circular(20),
+                            child: const CircleAvatar(
+                              radius: 20,
+                              backgroundColor:
+                                  Colors.white24,
+                              child: Icon(
+                                Icons.person_rounded,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
+
                   const SizedBox(height: 16),
-                  // ── ABAS ──────────────────────────────────
+
+                  // ==========================================
+                  // ABAS
+                  // ==========================================
+
                   TabBar(
                     controller: _tab,
                     isScrollable: true,
@@ -156,24 +464,35 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                     indicatorWeight: 3,
                     labelColor: Colors.white,
                     unselectedLabelColor: Colors.white60,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    tabAlignment: TabAlignment.start,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    tabAlignment:
+                        TabAlignment.start,
                     tabs: const [
-                      Tab(text: 'Vídeos'),
-                      Tab(text: 'Leitura'), // Aba renomeada
+                      Tab(
+                        text: 'Vídeos',
+                      ),
+                      Tab(
+                        text: 'Leitura',
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
 
-            // ── CONTEÚDO ──────────────────────────────────────
+            // ==================================================
+            // CONTEÚDO
+            // ==================================================
+
             Expanded(
               child: TabBarView(
                 controller: _tab,
                 children: [
                   _abaVideos(),
-                  _abaLeitura(), // Conteúdo da aba de leitura
+                  _abaLeitura(),
                 ],
               ),
             ),
@@ -183,112 +502,444 @@ class _EnsinoScreenState extends State<EnsinoScreen>
     );
   }
 
-  // ── ABA VÍDEOS ─────────────────────────────────────────────────────────────
+  // ==========================================================
+  // ABA VÍDEOS
+  // ==========================================================
 
-Widget _abaVideos() {
-  return ListView(
-    padding: const EdgeInsets.all(15),
-    children: const [
-      VideoCard(
-        title: 'Como analisar ações',
-        videoId: 'bkcMlHEtXsI',
-        duration: '17:10',
+  Widget _abaVideos() {
+    if (_carregandoVideos) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_erroVideos != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 50,
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Não foi possível carregar os vídeos.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _carregarVideos,
+                child: const Text(
+                  'Tentar novamente',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_videos.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _carregarVideos,
+        child: ListView(
+          children: const [
+            SizedBox(height: 150),
+            Center(
+              child: Text(
+                'Nenhum vídeo disponível.',
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _carregarVideos,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(15),
+        itemCount: _videos.length,
+        separatorBuilder: (_, __) =>
+            const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final video = _videos[index];
+
+          final titulo =
+              video['titulo'] ?? 'Sem título';
+
+          final url =
+              video['url'] ?? '';
+
+          final duracao =
+              video['duracao']?.toString() ?? '';
+
+          final videoId =
+              _extrairVideoId(url);
+
+          if (videoId == null) {
+            return _videoInvalido(
+              titulo,
+              url,
+            );
+          }
+
+          return VideoCard(
+            title: titulo,
+            videoId: videoId,
+            duration: duracao,
+          );
+        },
       ),
-      SizedBox(height: 10),
-
-      VideoCard(
-        title: 'O que são fundos imobiliários?',
-        videoId: 'vZ64S8dFpEM',
-        duration: '9:54',
-      ),
-      SizedBox(height: 10),
-
-      VideoCard(
-        title: 'Análise Técnica para Iniciantes',
-        videoId: '1tbjXu6oHqI',
-        duration: '10:08',
-      ),
-      SizedBox(height: 10),
-
-      VideoCard(
-        title: 'Como montar uma carteira diversificada',
-        videoId: 'bkcMlHEtXsI',
-        duration: '14:22',
-      ),
-    ],
-  );
-}
-
-  // ── ABA LEITURA (Antigos Artigos) ──────────────────────────────────────────
-  Widget _abaLeitura() {
-    return ListView.separated(
-      padding: const EdgeInsets.all(15),
-      itemCount: _conteudosLeitura.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _conteudoLeituraCard(_conteudosLeitura[i]),
     );
   }
 
-  Widget _conteudoLeituraCard(ConteudoLeitura c) {
+  // ==========================================================
+  // EXTRAIR ID DO YOUTUBE
+  // ==========================================================
+
+  String? _extrairVideoId(
+    String url,
+  ) {
+    try {
+      final uri = Uri.parse(url);
+
+      if (uri.host.contains('youtube.com')) {
+        return uri.queryParameters['v'];
+      }
+
+      if (uri.host.contains('youtu.be')) {
+        if (uri.pathSegments.isNotEmpty) {
+          return uri.pathSegments.first;
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  // ==========================================================
+  // VÍDEO INVÁLIDO
+  // ==========================================================
+
+  Widget _videoInvalido(
+    String titulo,
+    String url,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+            BorderRadius.circular(15),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Text(
+            titulo,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'URL do YouTube inválida.',
+            style: TextStyle(
+              color: Colors.red,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            url,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // ABA LEITURA
+  // ==========================================================
+
+  Widget _abaLeitura() {
+    if (_carregandoMateriais) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_erroMateriais != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.menu_book_outlined,
+                size: 50,
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Não foi possível carregar os materiais.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed:
+                    _carregarMateriais,
+                child: const Text(
+                  'Tentar novamente',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_materiais.isEmpty) {
+      return RefreshIndicator(
+        onRefresh:
+            _carregarMateriais,
+        child: ListView(
+          children: const [
+            SizedBox(height: 150),
+            Center(
+              child: Text(
+                'Nenhum material disponível.',
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh:
+          _carregarMateriais,
+      child: ListView.separated(
+        padding:
+            const EdgeInsets.all(15),
+        itemCount:
+            _materiais.length,
+        separatorBuilder:
+            (_, __) =>
+                const SizedBox(height: 10),
+        itemBuilder:
+            (context, index) {
+          final material =
+              _materiais[index];
+
+          return _materialCard(
+            material,
+          );
+        },
+      ),
+    );
+  }
+
+  // ==========================================================
+  // CARD DO MATERIAL
+  // ==========================================================
+
+  Widget _materialCard(
+    ConteudoLeitura material,
+  ) {
+    IconData icone;
+    Color cor;
+
+    switch (
+        material.tipo.toLowerCase()) {
+      case 'pdf':
+        icone =
+            Icons.picture_as_pdf_rounded;
+        cor = Colors.red;
+        break;
+
+      case 'epub':
+        icone =
+            Icons.menu_book_rounded;
+        cor = Colors.deepPurple;
+        break;
+
+      case 'mobi':
+        icone =
+            Icons.book_rounded;
+        cor = Colors.orange;
+        break;
+
+      default:
+        icone =
+            Icons.description_rounded;
+        cor = Colors.blue;
+    }
+
     return GestureDetector(
-      onTap: () {
-        // TODO: Implementar navegação para a URL do conteúdo completo
-        // Por exemplo, usando url_launcher para abrir no navegador externo
-        // ou navegando para uma tela interna que renderize o conteúdo.
-        print('Abrir conteúdo: ${c.urlConteudo}');
-      },
+      onTap: () =>
+          _abrirMaterial(material),
       child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
+        padding:
+            const EdgeInsets.all(16),
+        decoration:
+            BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius:
+              BorderRadius.circular(16),
           boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2)),
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
           ],
         ),
         child: Row(
           children: [
+            // ==============================================
+            // ÍCONE
+            // ==============================================
+
             Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: c.cor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(14),
+              width: 50,
+              height: 50,
+              decoration:
+                  BoxDecoration(
+                color:
+                    cor.withOpacity(0.12),
+                borderRadius:
+                    BorderRadius.circular(14),
               ),
-              child: Icon(c.icone, color: c.cor, size: 24),
+              child: Icon(
+                icone,
+                color: cor,
+                size: 26,
+              ),
             ),
+
             const SizedBox(width: 14),
+
+            // ==============================================
+            // TEXTOS
+            // ==============================================
+
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
-                  Text(c.titulo,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 4),
-                  Text(c.descricao,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  Text(
+                    material.titulo,
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    maxLines: 2,
+                    overflow:
+                        TextOverflow.ellipsis,
+                  ),
+
+                  if (material
+                      .descricao.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      material.descricao,
+                      style: TextStyle(
+                        color:
+                            Colors.grey[500],
+                        fontSize: 12,
+                      ),
                       maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 6),
+                      overflow:
+                          TextOverflow.ellipsis,
+                    ),
+                  ],
+
+                  const SizedBox(height: 7),
+
                   Row(
                     children: [
-                      Icon(Icons.access_time_rounded,
-                          size: 12, color: Colors.grey[400]),
-                      const SizedBox(width: 4),
-                      Text(c.tempoEstimado,
-                          style: TextStyle(
-                              color: Colors.grey[400], fontSize: 11)),
+                      Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              cor.withOpacity(
+                                  0.10),
+                          borderRadius:
+                              BorderRadius
+                                  .circular(6),
+                        ),
+                        child: Text(
+                          material.tipo
+                              .toUpperCase(),
+                          style:
+                              TextStyle(
+                            color: cor,
+                            fontSize: 10,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                      if (material
+                          .tema.isNotEmpty) ...[
+                        const SizedBox(
+                          width: 8,
+                        ),
+                        Expanded(
+                          child: Text(
+                            material.tema,
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.grey[400],
+                              fontSize: 10,
+                            ),
+                            overflow:
+                                TextOverflow
+                                    .ellipsis,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded,
-                size: 14, color: Colors.grey[300]),
+
+            const SizedBox(width: 8),
+
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: Colors.grey[300],
+            ),
           ],
         ),
       ),
     );
   }
 }
+

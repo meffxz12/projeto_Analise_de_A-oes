@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -8,26 +10,63 @@ class ApiService {
   static const String baseUrl =
       "https://lanuginose-unsyllogistically-dianna.ngrok-free.dev";
 
-  // ── SESSÃO (TOKENS) ─────────────────────────────────────
+  // ============================================================
+  // SESSÃO (TOKENS)
+  // ============================================================
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
+
     return prefs.getString('access_token');
   }
 
   static Future<String?> getRefreshToken() async {
     final prefs = await SharedPreferences.getInstance();
+
     return prefs.getString('refresh_token');
   }
 
-  static Future<void> salvarToken(String token) async {
+  static Future<void> salvarToken(
+    String token,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('access_token', token);
+
+    await prefs.setString(
+      'access_token',
+      token,
+    );
   }
 
-  static Future<void> salvarRefreshToken(String token) async {
+  static Future<void> salvarRefreshToken(
+    String token,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('refresh_token', token);
+
+    await prefs.setString(
+      'refresh_token',
+      token,
+    );
+  }
+
+  // ============================================================
+  // ADMIN
+  // ============================================================
+
+  static Future<void> salvarAdmin(
+    bool admin,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setBool(
+      'is_admin',
+      admin,
+    );
+  }
+
+  static Future<bool> isAdmin() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getBool('is_admin') ?? false;
   }
 
   static Future<void> limparSessao() async {
@@ -35,29 +74,49 @@ class ApiService {
 
     await prefs.remove('access_token');
     await prefs.remove('refresh_token');
+    await prefs.remove('is_admin');
   }
 
-  static Future<void> limparToken() => limparSessao();
+  static Future<void> limparToken() async {
+    await limparSessao();
+  }
 
-  static int? _usuarioIdFromToken(String token) {
+  // ============================================================
+  // USUÁRIO ID PELO TOKEN
+  // ============================================================
+
+  static int? _usuarioIdFromToken(
+    String token,
+  ) {
     try {
       final partes = token.split('.');
 
-      if (partes.length != 3) return null;
+      if (partes.length != 3) {
+        return null;
+      }
 
-      final payloadNormalizado = base64Url.normalize(partes[1]);
+      final payloadNormalizado =
+          base64Url.normalize(
+        partes[1],
+      );
 
       final payload = jsonDecode(
         utf8.decode(
-          base64Url.decode(payloadNormalizado),
+          base64Url.decode(
+            payloadNormalizado,
+          ),
         ),
       ) as Map<String, dynamic>;
 
       final sub = payload['sub'];
 
-      if (sub == null) return null;
+      if (sub == null) {
+        return null;
+      }
 
-      return int.tryParse(sub.toString());
+      return int.tryParse(
+        sub.toString(),
+      );
     } catch (_) {
       return null;
     }
@@ -66,15 +125,23 @@ class ApiService {
   static Future<int?> getUsuarioId() async {
     final token = await getToken();
 
-    if (token == null) return null;
+    if (token == null) {
+      return null;
+    }
 
-    return _usuarioIdFromToken(token);
+    return _usuarioIdFromToken(
+      token,
+    );
   }
+
+  // ============================================================
+  // HEADERS
+  // ============================================================
 
   static Future<Map<String, String>> _headers({
     bool auth = false,
   }) async {
-    final headers = {
+    final headers = <String, String>{
       'Content-Type': 'application/json',
     };
 
@@ -82,28 +149,36 @@ class ApiService {
       final token = await getToken();
 
       if (token != null) {
-        headers['Authorization'] = 'Bearer $token';
+        headers['Authorization'] =
+            'Bearer $token';
       }
     }
 
     return headers;
   }
 
-  // ── RENOVAÇÃO DO TOKEN ──────────────────────────────────
+  // ============================================================
+  // RENOVAÇÃO DO TOKEN
+  // ============================================================
 
   static Future<bool> tentarRenovarToken() async {
     final refresh = await getRefreshToken();
 
-    if (refresh == null) return false;
+    if (refresh == null) {
+      return false;
+    }
 
     try {
-      final url = Uri.parse('$baseUrl/auth/refresh');
+      final url = Uri.parse(
+        '$baseUrl/auth/refresh',
+      );
 
       final response = await http.get(
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $refresh',
+          'Authorization':
+              'Bearer $refresh',
         },
       );
 
@@ -111,15 +186,20 @@ class ApiService {
         return false;
       }
 
-      final data = jsonDecode(response.body);
+      final data = jsonDecode(
+        response.body,
+      );
 
-      final novoAccessToken = data['access_token'];
+      final novoAccessToken =
+          data['access_token'];
 
       if (novoAccessToken == null) {
         return false;
       }
 
-      await salvarToken(novoAccessToken);
+      await salvarToken(
+        novoAccessToken,
+      );
 
       return true;
     } catch (_) {
@@ -127,20 +207,27 @@ class ApiService {
     }
   }
 
-  // ── REQUISIÇÃO CENTRAL ──────────────────────────────────
+  // ============================================================
+  // REQUISIÇÃO CENTRAL
+  // ============================================================
 
-  static Future<http.Response> _enviarRequisicao(
+  static Future<http.Response>
+      _enviarRequisicao(
     String metodo,
     Uri url, {
     Map<String, dynamic>? body,
     bool auth = false,
     bool tentandoNovamente = false,
   }) async {
-    final headers = await _headers(auth: auth);
+    final headers =
+        await _headers(
+      auth: auth,
+    );
 
-    final bodyJson = body != null
-        ? jsonEncode(body)
-        : null;
+    final bodyJson =
+        body != null
+            ? jsonEncode(body)
+            : null;
 
     http.Response response;
 
@@ -181,10 +268,15 @@ class ApiService {
         );
     }
 
+    // ==========================================================
+    // TOKEN EXPIRADO
+    // ==========================================================
+
     if (response.statusCode == 401 &&
         auth &&
         !tentandoNovamente) {
-      final renovou = await tentarRenovarToken();
+      final renovou =
+          await tentarRenovarToken();
 
       if (renovou) {
         return _enviarRequisicao(
@@ -204,15 +296,20 @@ class ApiService {
     return response;
   }
 
-  // ── AUTH ─────────────────────────────────────────────────
+  // ============================================================
+  // AUTH - LOGIN
+  // ============================================================
 
   static Future<String> login(
     String email,
     String senha,
   ) async {
-    final url = Uri.parse('$baseUrl/auth/login');
+    final url = Uri.parse(
+      '$baseUrl/auth/login',
+    );
 
-    final response = await _enviarRequisicao(
+    final response =
+        await _enviarRequisicao(
       'POST',
       url,
       body: {
@@ -222,27 +319,57 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
-      final accessToken = data['access_token'];
-      final refreshToken = data['refresh_token'];
+      final accessToken =
+          data['access_token'];
 
-      await salvarToken(accessToken);
+      final refreshToken =
+          data['refresh_token'];
 
-      if (refreshToken != null) {
-        await salvarRefreshToken(refreshToken);
+      final admin =
+          data['admin'] ?? false;
+
+      if (accessToken == null) {
+        throw Exception(
+          'Token de acesso não recebido.',
+        );
       }
 
-      // ─────────────────────────────────────────────────
-      // SALVA O TOKEN FCM DO USUÁRIO NO BACKEND
-      // ─────────────────────────────────────────────────
+      await salvarToken(
+        accessToken,
+      );
+
+      if (refreshToken != null) {
+        await salvarRefreshToken(
+          refreshToken,
+        );
+      }
+
+      await salvarAdmin(
+        admin == true,
+      );
+
+      print('====================================');
+      print('LOGIN REALIZADO');
+      print('ADMIN: ${admin == true}');
+      print('====================================');
+
+      // ========================================================
+      // SALVAR TOKEN FCM
+      // ========================================================
 
       try {
         final fcmToken =
-            await FirebaseMessaging.instance.getToken();
+            await FirebaseMessaging
+                .instance
+                .getToken();
 
         if (fcmToken != null) {
-          await salvarFCMToken(fcmToken);
+          await salvarFCMToken(
+            fcmToken,
+          );
 
           print(
             'FCM TOKEN VINCULADO AO USUÁRIO COM SUCESSO!',
@@ -255,22 +382,40 @@ class ApiService {
       }
 
       return accessToken;
-    } else {
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
       throw Exception(
-        'Login falhou: ${response.statusCode}',
+        data['detail'] ??
+            'Login falhou: '
+                '${response.statusCode}',
+      );
+    } catch (_) {
+      throw Exception(
+        'Login falhou: '
+        '${response.statusCode}',
       );
     }
   }
+
+  // ============================================================
+  // CRIAR CONTA
+  // ============================================================
 
   static Future<void> criarConta(
     String nome,
     String email,
     String senha,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/auth/criar_conta');
+    final url = Uri.parse(
+      '$baseUrl/auth/criar_conta',
+    );
 
-    final response = await _enviarRequisicao(
+    final response =
+        await _enviarRequisicao(
       'POST',
       url,
       body: {
@@ -282,17 +427,31 @@ class ApiService {
 
     if (response.statusCode != 200 &&
         response.statusCode != 201) {
-      final data = jsonDecode(response.body);
+      try {
+        final data =
+            jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ?? 'Erro ao criar conta',
-      );
+        throw Exception(
+          data['detail'] ??
+              'Erro ao criar conta',
+        );
+      } catch (_) {
+        throw Exception(
+          'Erro ao criar conta: '
+          '${response.statusCode}',
+        );
+      }
     }
   }
 
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
   static Future<void> logout() async {
-    final url =
-        Uri.parse('$baseUrl/config/logout');
+    final url = Uri.parse(
+      '$baseUrl/config/logout',
+    );
 
     try {
       await _enviarRequisicao(
@@ -307,17 +466,26 @@ class ApiService {
     await limparSessao();
   }
 
-  // ── MERCADO ──────────────────────────────────────────────
+  // ============================================================
+  // MERCADO - AÇÕES
+  // ============================================================
 
-  static Future<List<dynamic>> buscarAcoes() async {
-    final url =
-        Uri.parse('$baseUrl/mercado/acoes');
+  static Future<List<dynamic>>
+      buscarAcoes() async {
+    final url = Uri.parse(
+      '$baseUrl/mercado/acoes',
+    );
 
     final response =
-        await _enviarRequisicao('GET', url);
+        await _enviarRequisicao(
+      'GET',
+      url,
+    );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
@@ -325,38 +493,63 @@ class ApiService {
     );
   }
 
-  static Future<List<dynamic>> buscarFundos() async {
-    final url =
-        Uri.parse('$baseUrl/mercado/fundos');
+  // ============================================================
+  // MERCADO - FUNDOS
+  // ============================================================
+
+  static Future<List<dynamic>>
+      buscarFundos() async {
+    final url = Uri.parse(
+      '$baseUrl/mercado/fundos',
+    );
 
     final response =
-        await _enviarRequisicao('GET', url);
+        await _enviarRequisicao(
+      'GET',
+      url,
+    );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
       'Erro: ${response.statusCode}',
     );
   }
+
+  // ============================================================
+  // MERCADO - ÍNDICES
+  // ============================================================
 
   static Future<Map<String, dynamic>>
       buscarIndices() async {
-    final url =
-        Uri.parse('$baseUrl/mercado/indices');
+    final url = Uri.parse(
+      '$baseUrl/mercado/indices',
+    );
 
     final response =
-        await _enviarRequisicao('GET', url);
+        await _enviarRequisicao(
+      'GET',
+      url,
+    );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
       'Erro: ${response.statusCode}',
     );
   }
+
+  // ============================================================
+  // MERCADO - GRÁFICO
+  // ============================================================
 
   static Future<List<Map<String, dynamic>>>
       buscarGrafico(
@@ -369,11 +562,16 @@ class ApiService {
     );
 
     final response =
-        await _enviarRequisicao('GET', url);
+        await _enviarRequisicao(
+      'GET',
+      url,
+    );
 
     if (response.statusCode == 200) {
       return List<Map<String, dynamic>>.from(
-        jsonDecode(response.body),
+        jsonDecode(
+          response.body,
+        ),
       );
     }
 
@@ -382,12 +580,15 @@ class ApiService {
     );
   }
 
-  // ── FAVORITOS ────────────────────────────────────────────
+  // ============================================================
+  // FAVORITOS - AÇÕES
+  // ============================================================
 
   static Future<List<dynamic>>
       listarFavoritosAcoes() async {
-    final url =
-        Uri.parse('$baseUrl/favoritos/acoes');
+    final url = Uri.parse(
+      '$baseUrl/favoritos/acoes',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -397,7 +598,9 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
@@ -405,11 +608,13 @@ class ApiService {
     );
   }
 
-  static Future<void> adicionarFavoritoAcao(
+  static Future<void>
+      adicionarFavoritoAcao(
     String codigo,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/favoritos/acoes');
+    final url = Uri.parse(
+      '$baseUrl/favoritos/acoes',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -430,7 +635,8 @@ class ApiService {
     }
   }
 
-  static Future<void> removerFavoritoAcao(
+  static Future<void>
+      removerFavoritoAcao(
     String codigo,
   ) async {
     final url = Uri.parse(
@@ -452,10 +658,15 @@ class ApiService {
     }
   }
 
+  // ============================================================
+  // FAVORITOS - FUNDOS
+  // ============================================================
+
   static Future<List<dynamic>>
       listarFavoritosFundos() async {
-    final url =
-        Uri.parse('$baseUrl/favoritos/fundos');
+    final url = Uri.parse(
+      '$baseUrl/favoritos/fundos',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -465,7 +676,9 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
@@ -473,11 +686,13 @@ class ApiService {
     );
   }
 
-  static Future<void> adicionarFavoritoFundo(
+  static Future<void>
+      adicionarFavoritoFundo(
     String codigo,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/favoritos/fundos');
+    final url = Uri.parse(
+      '$baseUrl/favoritos/fundos',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -498,7 +713,8 @@ class ApiService {
     }
   }
 
-  static Future<void> removerFavoritoFundo(
+  static Future<void>
+      removerFavoritoFundo(
     String codigo,
   ) async {
     final url = Uri.parse(
@@ -520,7 +736,9 @@ class ApiService {
     }
   }
 
-  // ── CARTEIRA ─────────────────────────────────────────────
+  // ============================================================
+  // CARTEIRA
+  // ============================================================
 
   static Future<List<dynamic>>
       buscarCarteiraAtualizada() async {
@@ -536,7 +754,9 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
@@ -544,12 +764,14 @@ class ApiService {
     );
   }
 
-  static Future<void> adicionarAtivoCarteira(
+  static Future<void>
+      adicionarAtivoCarteira(
     String codigo,
     int quantidade,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/carteira/simular');
+    final url = Uri.parse(
+      '$baseUrl/carteira/simular',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -564,16 +786,25 @@ class ApiService {
 
     if (response.statusCode != 200 &&
         response.statusCode != 201) {
-      final data = jsonDecode(response.body);
+      try {
+        final data =
+            jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao adicionar ativo',
-      );
+        throw Exception(
+          data['detail'] ??
+              'Erro ao adicionar ativo',
+        );
+      } catch (_) {
+        throw Exception(
+          'Erro ao adicionar ativo: '
+          '${response.statusCode}',
+        );
+      }
     }
   }
 
-  static Future<void> atualizarAtivoCarteira(
+  static Future<void>
+      atualizarAtivoCarteira(
     int itemId,
     int quantidade,
   ) async {
@@ -599,7 +830,8 @@ class ApiService {
     }
   }
 
-  static Future<void> removerAtivoCarteira(
+  static Future<void>
+      removerAtivoCarteira(
     int itemId,
   ) async {
     final url = Uri.parse(
@@ -621,17 +853,26 @@ class ApiService {
     }
   }
 
-  // ── EDUCAÇÃO ─────────────────────────────────────────────
+  // ============================================================
+  // EDUCAÇÃO - VÍDEOS
+  // ============================================================
 
-  static Future<List<dynamic>> listarVideos() async {
-    final url =
-        Uri.parse('$baseUrl/educacao/videos');
+  static Future<List<dynamic>>
+      listarVideos() async {
+    final url = Uri.parse(
+      '$baseUrl/educacao/videos',
+    );
 
     final response =
-        await _enviarRequisicao('GET', url);
+        await _enviarRequisicao(
+      'GET',
+      url,
+    );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
@@ -641,16 +882,23 @@ class ApiService {
   }
 
   static Future<List<dynamic>>
-      listarVideosPorTema(String tema) async {
+      listarVideosPorTema(
+    String tema,
+  ) async {
     final url = Uri.parse(
       '$baseUrl/educacao/videos/tema/$tema',
     );
 
     final response =
-        await _enviarRequisicao('GET', url);
+        await _enviarRequisicao(
+      'GET',
+      url,
+    );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
@@ -658,14 +906,522 @@ class ApiService {
     );
   }
 
-  // ── USUÁRIO ──────────────────────────────────────────────
+  // ============================================================
+  // EDUCAÇÃO - MATERIAIS
+  // ============================================================
 
-  // Salva o FCM Token no usuário logado
-  static Future<void> salvarFCMToken(
+  static Future<List<dynamic>>
+      listarMateriais() async {
+    final url = Uri.parse(
+      '$baseUrl/educacao/materiais',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'GET',
+      url,
+    );
+
+    if (response.statusCode == 200) {
+      final dados =
+          jsonDecode(response.body);
+
+      if (dados is! List) {
+        throw Exception(
+          'Formato inválido retornado '
+          'pela API de materiais.',
+        );
+      }
+
+      final materiais =
+          List<dynamic>.from(dados);
+
+      // ========================================================
+      // CORRIGE A URL DO ARQUIVO
+      // ========================================================
+
+      for (final material in materiais) {
+        if (material is! Map) {
+          continue;
+        }
+
+        final caminho =
+            material['url'];
+
+        if (caminho == null) {
+          continue;
+        }
+
+        final caminhoString =
+            caminho.toString().trim();
+
+        if (caminhoString.isEmpty) {
+          continue;
+        }
+
+        if (caminhoString.startsWith(
+              'http://',
+            ) ||
+            caminhoString.startsWith(
+              'https://',
+            )) {
+          material['url'] =
+              caminhoString;
+        } else if (caminhoString.startsWith(
+          '/',
+        )) {
+          material['url'] =
+              '$baseUrl$caminhoString';
+        } else {
+          material['url'] =
+              '$baseUrl/$caminhoString';
+        }
+
+        print('====================================');
+        print('MATERIAL CARREGADO');
+        print('ID: ${material['id']}');
+        print('TÍTULO: ${material['titulo']}');
+        print('URL FINAL: ${material['url']}');
+        print('====================================');
+      }
+
+      return materiais;
+    }
+
+    throw Exception(
+      'Erro ao carregar materiais: '
+      '${response.statusCode}',
+    );
+  }
+
+  // ============================================================
+  // ADMIN - ADICIONAR MATERIAL
+  // UPLOAD DE PDF / EPUB / MOBI
+  // ============================================================
+
+  static Future<void> adicionarMaterial({
+    required String titulo,
+    String? descricao,
+    String? tema,
+    required String caminhoArquivo,
+  }) async {
+    final url = Uri.parse(
+      '$baseUrl/educacao/materiais',
+    );
+
+    final token = await getToken();
+
+    final request =
+        http.MultipartRequest(
+      'POST',
+      url,
+    );
+
+    // ==========================================================
+    // AUTHORIZATION
+    // ==========================================================
+
+    if (token != null) {
+      request.headers['Authorization'] =
+          'Bearer $token';
+    }
+
+    // ==========================================================
+    // CAMPOS
+    // ==========================================================
+
+    request.fields['titulo'] = titulo;
+
+    if (descricao != null &&
+        descricao.trim().isNotEmpty) {
+      request.fields['descricao'] =
+          descricao.trim();
+    }
+
+    if (tema != null &&
+        tema.trim().isNotEmpty) {
+      request.fields['tema'] =
+          tema.trim();
+    }
+
+    // ==========================================================
+    // ARQUIVO
+    // ==========================================================
+
+    final arquivo = File(
+      caminhoArquivo,
+    );
+
+    if (!await arquivo.exists()) {
+      throw Exception(
+        'Arquivo não encontrado.',
+      );
+    }
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'arquivo',
+        caminhoArquivo,
+      ),
+    );
+
+    print('====================================');
+    print('ENVIANDO MATERIAL');
+    print('TÍTULO: $titulo');
+    print('ARQUIVO: $caminhoArquivo');
+    print('====================================');
+
+    // ==========================================================
+    // ENVIAR
+    // ==========================================================
+
+    final streamedResponse =
+        await request.send();
+
+    final response =
+        await http.Response.fromStream(
+      streamedResponse,
+    );
+
+    print('====================================');
+    print('RESPOSTA DO UPLOAD');
+    print('STATUS: ${response.statusCode}');
+    print('BODY: ${response.body}');
+    print('====================================');
+
+    if (response.statusCode == 200 ||
+        response.statusCode == 201) {
+      return;
+    }
+
+    if (response.statusCode == 401) {
+      final renovou =
+          await tentarRenovarToken();
+
+      if (renovou) {
+        return adicionarMaterial(
+          titulo: titulo,
+          descricao: descricao,
+          tema: tema,
+          caminhoArquivo: caminhoArquivo,
+        );
+      }
+
+      await limparSessao();
+
+      redirecionarParaLogin();
+
+      throw Exception(
+        'Sessão expirada.',
+      );
+    }
+
+    if (response.statusCode == 403) {
+      throw Exception(
+        'Acesso negado. '
+        'Apenas administradores podem '
+        'adicionar materiais.',
+      );
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao adicionar material.',
+      );
+    } catch (_) {
+      throw Exception(
+        'Erro ao adicionar material: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+  // ============================================================
+  // ADMIN - EXCLUIR MATERIAL
+  // ============================================================
+
+  static Future<void> excluirMaterial(
+    int materialId,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/educacao/materiais/'
+      '$materialId',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'DELETE',
+      url,
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    if (response.statusCode == 403) {
+      throw Exception(
+        'Acesso negado. '
+        'Apenas administradores podem '
+        'excluir materiais.',
+      );
+    }
+
+    if (response.statusCode == 404) {
+      throw Exception(
+        'Material não encontrado.',
+      );
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao excluir material.',
+      );
+    } catch (_) {
+      throw Exception(
+        'Erro ao excluir material: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+  // ============================================================
+  // ADMIN - VÍDEOS
+  // ============================================================
+
+  static Future<List<dynamic>>
+      listarVideosAdmin() async {
+    final url = Uri.parse(
+      '$baseUrl/admin/videos/',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'GET',
+      url,
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(
+        response.body,
+      );
+    }
+
+    if (response.statusCode == 403) {
+      throw Exception(
+        'Acesso negado. '
+        'Apenas administradores podem '
+        'acessar esta área.',
+      );
+    }
+
+    throw Exception(
+      'Erro ao carregar vídeos: '
+      '${response.statusCode}',
+    );
+  }
+
+  // ============================================================
+  // ADMIN - ADICIONAR VÍDEO
+  // ============================================================
+
+  static Future<void>
+      adicionarVideoAdmin({
+    required String titulo,
+    String? descricao,
+    required String url,
+    String? tema,
+    String? duracao,
+  }) async {
+    final endpoint = Uri.parse(
+      '$baseUrl/admin/videos/',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'POST',
+      endpoint,
+      body: {
+        'titulo': titulo,
+        'descricao': descricao,
+        'url': url,
+        'tema': tema,
+        'duracao': duracao,
+      },
+      auth: true,
+    );
+
+    if (response.statusCode == 200 ||
+        response.statusCode == 201) {
+      return;
+    }
+
+    if (response.statusCode == 403) {
+      throw Exception(
+        'Acesso negado. '
+        'Apenas administradores podem '
+        'adicionar vídeos.',
+      );
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao adicionar vídeo.',
+      );
+    } catch (_) {
+      throw Exception(
+        'Erro ao adicionar vídeo: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+  // ============================================================
+  // ADMIN - EDITAR VÍDEO
+  // ============================================================
+
+  static Future<void>
+      editarVideoAdmin({
+    required int videoId,
+    String? titulo,
+    String? descricao,
+    String? url,
+    String? tema,
+    String? duracao,
+  }) async {
+    final endpoint = Uri.parse(
+      '$baseUrl/admin/videos/$videoId',
+    );
+
+    final Map<String, dynamic> dados = {};
+
+    if (titulo != null) {
+      dados['titulo'] = titulo;
+    }
+
+    if (descricao != null) {
+      dados['descricao'] = descricao;
+    }
+
+    if (url != null) {
+      dados['url'] = url;
+    }
+
+    if (tema != null) {
+      dados['tema'] = tema;
+    }
+
+    if (duracao != null) {
+      dados['duracao'] = duracao;
+    }
+
+    final response =
+        await _enviarRequisicao(
+      'PUT',
+      endpoint,
+      body: dados,
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    if (response.statusCode == 403) {
+      throw Exception(
+        'Acesso negado. '
+        'Apenas administradores podem '
+        'editar vídeos.',
+      );
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao editar vídeo.',
+      );
+    } catch (_) {
+      throw Exception(
+        'Erro ao editar vídeo: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+  // ============================================================
+  // ADMIN - EXCLUIR VÍDEO
+  // ============================================================
+
+  static Future<void>
+      excluirVideoAdmin(
+    int videoId,
+  ) async {
+    final endpoint = Uri.parse(
+      '$baseUrl/admin/videos/$videoId',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'DELETE',
+      endpoint,
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    if (response.statusCode == 403) {
+      throw Exception(
+        'Acesso negado. '
+        'Apenas administradores podem '
+        'excluir vídeos.',
+      );
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao excluir vídeo.',
+      );
+    } catch (_) {
+      throw Exception(
+        'Erro ao excluir vídeo: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+  // ============================================================
+  // USUÁRIO - FCM TOKEN
+  // ============================================================
+
+  static Future<void>
+      salvarFCMToken(
     String fcmToken,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/usuario/fcm-token');
+    final url = Uri.parse(
+      '$baseUrl/usuario/fcm-token',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -685,10 +1441,15 @@ class ApiService {
     }
   }
 
+  // ============================================================
+  // USUÁRIO - PERFIL
+  // ============================================================
+
   static Future<Map<String, dynamic>>
       buscarPerfil() async {
-    final url =
-        Uri.parse('$baseUrl/usuario/me');
+    final url = Uri.parse(
+      '$baseUrl/usuario/me',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -698,7 +1459,9 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(
+        response.body,
+      );
     }
 
     throw Exception(
@@ -706,11 +1469,17 @@ class ApiService {
     );
   }
 
-  static Future<void> atualizarAvatar(
+  // ============================================================
+  // USUÁRIO - AVATAR
+  // ============================================================
+
+  static Future<void>
+      atualizarAvatar(
     String avatar,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/usuario/avatar');
+    final url = Uri.parse(
+      '$baseUrl/usuario/avatar',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -729,31 +1498,145 @@ class ApiService {
       );
     }
   }
-// ── NOTIFICAÇÕES ─────────────────────────────────────────
 
-static Future<void> enviarNotificacao(
-  String titulo,
-  String mensagem,
-) async {
-  final url = Uri.parse('$baseUrl/notificacoes/enviar');
+  // ============================================================
+  // NOTIFICAÇÕES - ENVIAR
+  // ============================================================
 
-  final response = await _enviarRequisicao(
-    'POST',
-    url,
-    body: {
-      'titulo': titulo,
-      'mensagem': mensagem,
-    },
-    auth: true,
-  );
+  static Future<void>
+      enviarNotificacao(
+    String titulo,
+    String mensagem, {
+    String tipo = 'SISTEMA',
+  }) async {
+    final url = Uri.parse(
+      '$baseUrl/notificacoes/enviar',
+    );
 
-  if (response.statusCode != 200) {
-    final data = jsonDecode(response.body);
+    final response =
+        await _enviarRequisicao(
+      'POST',
+      url,
+      body: {
+        'titulo': titulo,
+        'mensagem': mensagem,
+        'tipo': tipo,
+      },
+      auth: true,
+    );
+
+    if (response.statusCode != 200) {
+      try {
+        final data =
+            jsonDecode(response.body);
+
+        throw Exception(
+          data['detail'] ??
+              'Erro ao enviar notificação',
+        );
+      } catch (_) {
+        throw Exception(
+          'Erro ao enviar notificação: '
+          '${response.statusCode}',
+        );
+      }
+    }
+  }
+
+  // ============================================================
+  // NOTIFICAÇÕES - LISTAR
+  // ============================================================
+
+  static Future<List<dynamic>>
+      listarNotificacoes() async {
+    final url = Uri.parse(
+      '$baseUrl/notificacoes',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'GET',
+      url,
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(
+        response.body,
+      );
+    }
 
     throw Exception(
-      data['detail'] ?? 'Erro ao enviar notificação',
+      'Erro ao carregar notificações: '
+      '${response.statusCode}',
     );
   }
-}
 
+  // ============================================================
+  // NOTIFICAÇÕES - CONTAR NÃO LIDAS
+  // ============================================================
+
+  static Future<int>
+      contarNotificacoesNaoLidas() async {
+    final url = Uri.parse(
+      '$baseUrl/notificacoes/nao-lidas',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'GET',
+      url,
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      final data =
+          jsonDecode(response.body);
+
+      return data['nao_lidas'] ?? 0;
+    }
+
+    throw Exception(
+      'Erro ao contar notificações: '
+      '${response.statusCode}',
+    );
+  }
+
+  // ============================================================
+  // NOTIFICAÇÕES - MARCAR COMO LIDA
+  // ============================================================
+
+  static Future<void>
+      marcarNotificacaoComoLida(
+    int notificacaoId,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/notificacoes/'
+      '$notificacaoId/ler',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'PUT',
+      url,
+      auth: true,
+    );
+
+    if (response.statusCode != 200) {
+      try {
+        final data =
+            jsonDecode(response.body);
+
+        throw Exception(
+          data['detail'] ??
+              'Erro ao marcar notificação como lida',
+        );
+      } catch (_) {
+        throw Exception(
+          'Erro ao marcar notificação como lida: '
+          '${response.statusCode}',
+        );
+      }
+    }
+  }
 }

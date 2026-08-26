@@ -11,20 +11,16 @@ import 'package:meu_apli/services/notification_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Carrega as variáveis do arquivo .env
   await dotenv.load(fileName: "env");
 
-  // Inicializa o Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Configura o recebimento de notificações em segundo plano
   FirebaseMessaging.onBackgroundMessage(
     NotificationService.firebaseMessagingBackgroundHandler,
   );
 
-  // Inicializa o serviço de notificações
   await NotificationService.initialize();
 
   runApp(const MyApp());
@@ -38,7 +34,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      title: 'Análise de Ações',
+      title: 'InvestServ',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF6A5AE0),
