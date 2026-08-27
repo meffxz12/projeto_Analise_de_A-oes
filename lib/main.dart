@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:meu_apli/services/navigation_service.dart';
-import 'package:meu_apli/telas/splash_screen.dart';
+import 'package:meu_apli/telas/auth/login.dart';
+import 'package:meu_apli/telas/onboarding/splash_screen.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

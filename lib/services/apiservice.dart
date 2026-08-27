@@ -5,7 +5,7 @@ import 'package:meu_apli/services/navigation_service.dart';
 
 class ApiService {
   static const String baseUrl =
-      "https://subdermic-semiluminously-beckie.ngrok-free.dev";
+      "https://street-commotion-panther.ngrok-free.dev";
 
   // ── SESSÃO (TOKENS) ─────────────────────────────────────
 
@@ -364,5 +364,16 @@ class ApiService {
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw Exception('Nenhum vídeo encontrado para esse tema');
+  }
+  // ── ONBOARDING ───────────────────────────────────────────
+
+  static Future<bool> jaViuBoasVindas() async {
+   final prefs = await SharedPreferences.getInstance();
+   return prefs.getBool('ja_viu_boasvindas') ?? false;
+  }
+
+  static Future<void> marcarBoasVindasVistas() async {
+    final prefs = await SharedPreferences.getInstance();
+   await prefs.setBool('ja_viu_boasvindas', true);
   }
 }
