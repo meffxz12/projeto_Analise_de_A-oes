@@ -1,13 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 import 'package:meu_apli/services/navigation_service.dart';
 import 'package:meu_apli/telas/auth/login.dart';
-import 'package:meu_apli/telas/onboarding/splash_screen.dart';
-
+import 'firebase_options.dart';
+import 'package:meu_apli/services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await dotenv.load(fileName: "env");
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  FirebaseMessaging.onBackgroundMessage(
+    NotificationService.firebaseMessagingBackgroundHandler,
+  );
+
+  await NotificationService.initialize();
+
   runApp(const MyApp());
 }
 
@@ -19,12 +34,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      title: 'Análise de Ações',
+      title: 'InvestServ',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6A5AE0)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6A5AE0),
+        ),
         useMaterial3: true,
       ),
-      home: const SplashScreen(),
+      home: const LoginScreen(),
     );
   }
 }

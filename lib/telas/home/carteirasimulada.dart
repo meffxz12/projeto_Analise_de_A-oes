@@ -288,6 +288,26 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
               ),
             ),
 
+            // ── DICA DE SWIPE ─────────────────────────────────
+            if (!_loading && _erro == null && _ativos.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(15, 4, 15, 0),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.swipe_left_rounded,
+                      size: 14,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Arraste um ativo para o lado para removê-lo',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+
             // ── LISTA ─────────────────────────────────────────
             Expanded(
               child: _loading
