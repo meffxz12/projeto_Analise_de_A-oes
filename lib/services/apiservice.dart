@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:meu_apli/services/navigation_service.dart';
 
 class ApiService {
@@ -78,14 +79,14 @@ class ApiService {
         return null;
       }
 
-      final payloadNormalizado = base64Url.normalize(partes[1]);
+      final payloadNormalizado =
+          base64Url.normalize(partes[1]);
 
-      final payload =
-          jsonDecode(
-            utf8.decode(
-              base64Url.decode(payloadNormalizado),
-            ),
-          ) as Map<String, dynamic>;
+      final payload = jsonDecode(
+        utf8.decode(
+          base64Url.decode(payloadNormalizado),
+        ),
+      ) as Map<String, dynamic>;
 
       final sub = payload['sub'];
 
@@ -194,7 +195,8 @@ class ApiService {
   }) async {
     final headers = await _headers(auth: auth);
 
-    final bodyJson = body != null ? jsonEncode(body) : null;
+    final bodyJson =
+        body != null ? jsonEncode(body) : null;
 
     http.Response response;
 
@@ -242,7 +244,8 @@ class ApiService {
     if (response.statusCode == 401 &&
         auth &&
         !tentandoNovamente) {
-      final renovou = await tentarRenovarToken();
+      final renovou =
+          await tentarRenovarToken();
 
       if (renovou) {
         return _enviarRequisicao(
@@ -270,7 +273,8 @@ class ApiService {
     String email,
     String senha,
   ) async {
-    final url = Uri.parse('$baseUrl/auth/login');
+    final url =
+        Uri.parse('$baseUrl/auth/login');
 
     final response = await _enviarRequisicao(
       'POST',
@@ -284,9 +288,14 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
 
-      final accessToken = data['access_token'];
-      final refreshToken = data['refresh_token'];
-      final admin = data['admin'] ?? false;
+      final accessToken =
+          data['access_token'];
+
+      final refreshToken =
+          data['refresh_token'];
+
+      final admin =
+          data['admin'] ?? false;
 
       if (accessToken == null) {
         throw Exception(
@@ -297,10 +306,14 @@ class ApiService {
       await salvarToken(accessToken);
 
       if (refreshToken != null) {
-        await salvarRefreshToken(refreshToken);
+        await salvarRefreshToken(
+          refreshToken,
+        );
       }
 
-      await salvarAdmin(admin == true);
+      await salvarAdmin(
+        admin == true,
+      );
 
       print('====================================');
       print('LOGIN REALIZADO');
@@ -313,10 +326,13 @@ class ApiService {
 
       try {
         final fcmToken =
-            await FirebaseMessaging.instance.getToken();
+            await FirebaseMessaging.instance
+                .getToken();
 
         if (fcmToken != null) {
-          await salvarFCMToken(fcmToken);
+          await salvarFCMToken(
+            fcmToken,
+          );
 
           print(
             'FCM TOKEN VINCULADO AO USUÁRIO COM SUCESSO!',
@@ -332,7 +348,8 @@ class ApiService {
     }
 
     try {
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       throw Exception(
         data['detail'] ??
@@ -347,6 +364,18 @@ class ApiService {
 
   // ============================================================
   // CRIAR CONTA
+  //
+  // FLUXO:
+  //
+  // Flutter
+  //    ↓
+  // FastAPI
+  //    ↓
+  // PostgreSQL + Firebase Authentication
+  //    ↓
+  // Flutter entra no Firebase
+  //    ↓
+  // Firebase envia e-mail de verificação
   // ============================================================
 
   static Future<void> criarConta(
@@ -354,32 +383,316 @@ class ApiService {
     String email,
     String senha,
   ) async {
+    final emailLimpo = email.trim();
+
+    // ==========================================================
+    // 1. CRIAR CONTA NO FASTAPI
+    // ==========================================================
+
     final url =
         Uri.parse('$baseUrl/auth/criar_conta');
 
-    final response = await _enviarRequisicao(
+    final response =
+        await _enviarRequisicao(
       'POST',
       url,
       body: {
         'nome': nome,
-        'email_institucional': email,
+        'email_institucional': emailLimpo,
         'senha': senha,
       },
     );
 
+    // ==========================================================
+    // VERIFICAR RESPOSTA DO FASTAPI
+    // ==========================================================
+
     if (response.statusCode != 200 &&
         response.statusCode != 201) {
       try {
-        final data = jsonDecode(response.body);
+        final data =
+            jsonDecode(response.body);
 
         throw Exception(
-          data['detail'] ?? 'Erro ao criar conta',
+          data['detail'] ??
+              'Erro ao criar conta',
         );
       } catch (_) {
         throw Exception(
-          'Erro ao criar conta: ${response.statusCode}',
+          'Erro ao criar conta: '
+          '${response.statusCode}',
         );
       }
+    }
+
+    print('====================================');
+    print('CONTA CRIADA NO FASTAPI');
+    print('EMAIL: $emailLimpo');
+    print('====================================');
+
+    // ==========================================================
+    // 2. ENTRAR NO FIREBASE
+    // ==========================================================
+
+    try {
+      final credential =
+          await FirebaseAuth.instance
+              .signInWithEmailAndPassword(
+        email: emailLimpo,
+        password: senha,
+      );
+
+      final user = credential.user;
+
+      if (user == null) {
+        throw Exception(
+          'Não foi possível acessar a conta '
+          'no Firebase.',
+        );
+      }
+
+      print('====================================');
+      print('LOGIN NO FIREBASE REALIZADO');
+      print('UID: ${user.uid}');
+      print('EMAIL: ${user.email}');
+      print('====================================');
+
+      // ========================================================
+      // 3. ENVIAR E-MAIL DE VERIFICAÇÃO
+      // ========================================================
+
+      if (!user.emailVerified) {
+        await user.sendEmailVerification();
+
+        print('====================================');
+        print('E-MAIL DE VERIFICAÇÃO ENVIADO');
+        print('PARA: ${user.email}');
+        print('====================================');
+      } else {
+        print(
+          'E-MAIL JÁ ESTAVA VERIFICADO.',
+        );
+      }
+
+      // ========================================================
+      // NÃO MANTER LOGIN NO FIREBASE
+      //
+      // O login real do aplicativo continua sendo
+      // controlado pelo JWT do FastAPI.
+      // ========================================================
+
+      await FirebaseAuth.instance.signOut();
+
+    } on FirebaseAuthException catch (e) {
+      print('====================================');
+      print('ERRO NO FIREBASE AUTH');
+      print('CÓDIGO: ${e.code}');
+      print('MENSAGEM: ${e.message}');
+      print('====================================');
+
+      throw Exception(
+        'Sua conta foi criada, mas ocorreu '
+        'um erro ao enviar o e-mail de verificação: '
+        '${e.message ?? e.code}',
+      );
+    } catch (e) {
+      print('====================================');
+      print('ERRO AO ENVIAR VERIFICAÇÃO');
+      print(e);
+      print('====================================');
+
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // FIREBASE AUTH - VERIFICAR E-MAIL
+  // ============================================================
+
+  static Future<bool> emailFoiVerificado(
+    String email,
+    String senha,
+  ) async {
+    try {
+      final credential =
+          await FirebaseAuth.instance
+              .signInWithEmailAndPassword(
+        email: email.trim(),
+        password: senha,
+      );
+
+      final user = credential.user;
+
+      if (user == null) {
+        return false;
+      }
+
+      await user.reload();
+
+      final usuarioAtual =
+          FirebaseAuth.instance.currentUser;
+
+      final verificado =
+          usuarioAtual?.emailVerified ?? false;
+
+      await FirebaseAuth.instance.signOut();
+
+      print('====================================');
+      print('VERIFICAÇÃO DE E-MAIL');
+      print('EMAIL: $email');
+      print('VERIFICADO: $verificado');
+      print('====================================');
+
+      return verificado;
+    } on FirebaseAuthException catch (e) {
+      print('====================================');
+      print('ERRO AO VERIFICAR E-MAIL');
+      print('CÓDIGO: ${e.code}');
+      print('MENSAGEM: ${e.message}');
+      print('====================================');
+
+      return false;
+    } catch (e) {
+      print(
+        'ERRO AO VERIFICAR E-MAIL: $e',
+      );
+
+      return false;
+    }
+  }
+
+  // ============================================================
+  // FIREBASE AUTH - REENVIAR VERIFICAÇÃO
+  // ============================================================
+
+  static Future<void>
+      reenviarVerificacaoEmail(
+    String email,
+    String senha,
+  ) async {
+    try {
+      final credential =
+          await FirebaseAuth.instance
+              .signInWithEmailAndPassword(
+        email: email.trim(),
+        password: senha,
+      );
+
+      final user = credential.user;
+
+      if (user == null) {
+        throw Exception(
+          'Usuário não encontrado.',
+        );
+      }
+
+      await user.reload();
+
+      final usuarioAtual =
+          FirebaseAuth.instance.currentUser;
+
+      if (usuarioAtual?.emailVerified == true) {
+        await FirebaseAuth.instance.signOut();
+
+        throw Exception(
+          'Este e-mail já foi verificado.',
+        );
+      }
+
+      await usuarioAtual!
+          .sendEmailVerification();
+
+      print('====================================');
+      print('E-MAIL DE VERIFICAÇÃO REENVIADO');
+      print('PARA: ${usuarioAtual.email}');
+      print('====================================');
+
+      await FirebaseAuth.instance.signOut();
+
+    } on FirebaseAuthException catch (e) {
+      print('====================================');
+      print('ERRO AO REENVIAR VERIFICAÇÃO');
+      print('CÓDIGO: ${e.code}');
+      print('MENSAGEM: ${e.message}');
+      print('====================================');
+
+      throw Exception(
+        e.message ??
+            'Erro ao reenviar e-mail de verificação.',
+      );
+    }
+  }
+
+  // ============================================================
+  // LOGIN FORM - SWAGGER
+  // ============================================================
+
+  static Future<String> loginForm(
+    String email,
+    String senha,
+  ) async {
+    final url =
+        Uri.parse('$baseUrl/auth/login-form');
+
+    final response =
+        await http.post(
+      url,
+      headers: {
+        'Content-Type':
+            'application/x-www-form-urlencoded',
+      },
+      body: {
+        'username': email,
+        'password': senha,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data =
+          jsonDecode(response.body);
+
+      final accessToken =
+          data['access_token'];
+
+      final refreshToken =
+          data['refresh_token'];
+
+      final admin =
+          data['admin'] ?? false;
+
+      if (accessToken == null) {
+        throw Exception(
+          'Token de acesso não recebido.',
+        );
+      }
+
+      await salvarToken(accessToken);
+
+      if (refreshToken != null) {
+        await salvarRefreshToken(
+          refreshToken,
+        );
+      }
+
+      await salvarAdmin(
+        admin == true,
+      );
+
+      return accessToken;
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Login falhou: ${response.statusCode}',
+      );
+    } catch (_) {
+      throw Exception(
+        'Login falhou: ${response.statusCode}',
+      );
     }
   }
 
@@ -432,13 +745,15 @@ class ApiService {
       queryParameters: query,
     );
 
-    final response = await _enviarRequisicao(
+    final response =
+        await _enviarRequisicao(
       'GET',
       url,
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       if (data is Map<String, dynamic>) {
         return data;
@@ -482,13 +797,15 @@ class ApiService {
       queryParameters: query,
     );
 
-    final response = await _enviarRequisicao(
+    final response =
+        await _enviarRequisicao(
       'GET',
       url,
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       if (data is Map<String, dynamic>) {
         return data;
@@ -514,7 +831,9 @@ class ApiService {
     int limit = 20,
   }) async {
     final query =
-        Uri.encodeQueryComponent(busca.trim());
+        Uri.encodeQueryComponent(
+      busca.trim(),
+    );
 
     final url = Uri.parse(
       '$baseUrl/mercado/buscar'
@@ -523,7 +842,8 @@ class ApiService {
       '&limit=$limit',
     );
 
-    final response = await _enviarRequisicao(
+    final response =
+        await _enviarRequisicao(
       'GET',
       url,
     );
@@ -536,7 +856,8 @@ class ApiService {
     print('====================================');
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       if (data is Map<String, dynamic>) {
         final ativos = data['ativos'];
@@ -552,7 +873,8 @@ class ApiService {
     }
 
     try {
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       throw Exception(
         data['detail'] ??
@@ -765,15 +1087,10 @@ class ApiService {
 
   // ============================================================
   // CARTEIRA - RESUMO AGRUPADO
-  //
-  // Retorna:
-  // - quantidade
-  // - investido
-  // - valor_atual
-  // - ganho_perda
   // ============================================================
 
-  static Future<List<dynamic>> buscarCarteira() async {
+  static Future<List<dynamic>>
+      buscarCarteira() async {
     final url = Uri.parse(
       '$baseUrl/carteira/simular/agrupado',
     );
@@ -786,7 +1103,8 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       if (data is List) {
         return data;
@@ -798,7 +1116,8 @@ class ApiService {
     }
 
     try {
-      final data = jsonDecode(response.body);
+      final data =
+          jsonDecode(response.body);
 
       throw Exception(
         data['detail'] ??
@@ -814,8 +1133,6 @@ class ApiService {
 
   // ============================================================
   // CARTEIRA - ATUALIZADA
-  //
-  // Mantido para compatibilidade com telas antigas.
   // ============================================================
 
   static Future<List<dynamic>>
@@ -867,7 +1184,8 @@ class ApiService {
     if (response.statusCode != 200 &&
         response.statusCode != 201) {
       try {
-        final data = jsonDecode(response.body);
+        final data =
+            jsonDecode(response.body);
 
         throw Exception(
           data['detail'] ??
@@ -1003,7 +1321,8 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      final dados = jsonDecode(response.body);
+      final dados =
+          jsonDecode(response.body);
 
       if (dados is! List) {
         throw Exception(
@@ -1020,7 +1339,8 @@ class ApiService {
           continue;
         }
 
-        final caminho = material['url'];
+        final caminho =
+            material['url'];
 
         if (caminho == null) {
           continue;
@@ -1039,7 +1359,8 @@ class ApiService {
             caminhoString.startsWith(
               'https://',
             )) {
-          material['url'] = caminhoString;
+          material['url'] =
+              caminhoString;
         } else if (caminhoString.startsWith(
           '/',
         )) {
@@ -1054,7 +1375,9 @@ class ApiService {
         print('MATERIAL CARREGADO');
         print('ID: ${material['id']}');
         print('TÍTULO: ${material['titulo']}');
-        print('URL FINAL: ${material['url']}');
+        print(
+          'URL FINAL: ${material['url']}',
+        );
         print('====================================');
       }
 
@@ -1093,7 +1416,8 @@ class ApiService {
           'Bearer $token';
     }
 
-    request.fields['titulo'] = titulo;
+    request.fields['titulo'] =
+        titulo;
 
     if (descricao != null &&
         descricao.trim().isNotEmpty) {
@@ -1107,7 +1431,8 @@ class ApiService {
           tema.trim();
     }
 
-    final arquivo = File(caminhoArquivo);
+    final arquivo =
+        File(caminhoArquivo);
 
     if (!await arquivo.exists()) {
       throw Exception(
@@ -1552,7 +1877,9 @@ class ApiService {
     String tipo = 'SISTEMA',
   }) async {
     final url =
-        Uri.parse('$baseUrl/notificacoes/enviar');
+        Uri.parse(
+      '$baseUrl/notificacoes/enviar',
+    );
 
     final response =
         await _enviarRequisicao(
@@ -1705,4 +2032,3 @@ class ApiService {
     );
   }
 }
-
