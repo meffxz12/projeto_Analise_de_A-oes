@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:meu_apli/componentes/button.dart';
-import 'package:meu_apli/componentes/text_form_global.dart';
 import 'package:meu_apli/services/apiservice.dart';
 import 'package:meu_apli/navegacao/navegacaotelas.dart';
 import 'package:meu_apli/telas/auth/cadastro.dart';
@@ -16,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _senha = TextEditingController();
   bool _loading = false;
+  String? _erro;
 
   @override
   void dispose() {
@@ -26,13 +26,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (_email.text.isEmpty || _senha.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha email e senha')),
-      );
+      setState(() => _erro = 'Preencha email e senha');
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _erro = null;
+    });
 
     try {
       await ApiService.login(
@@ -48,9 +49,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      setState(() {
+        _erro = e.toString().replaceFirst('Exception: ', '');
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -127,6 +128,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => _login(),
                     ),
+                    if (_erro != null) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _erro!,
+                              style: const TextStyle(color: Colors.red, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 25),
                     _loading
                         ? const CircularProgressIndicator(color: Color(0xFF6A5AE0))

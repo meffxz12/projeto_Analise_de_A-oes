@@ -5,6 +5,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:meu_apli/services/navigation_service.dart';
 import 'package:meu_apli/telas/auth/login.dart';
+import 'package:meu_apli/telas/configura%C3%A7ao/configuracao_screen.dart';
+import 'package:meu_apli/telas/configura%C3%A7ao/alterar_senha_screen.dart';
 import 'firebase_options.dart';
 import 'package:meu_apli/services/notification_service.dart';
 
@@ -41,7 +43,10 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const LoginScreen(),
+      home: ConfiguracoesScreen(
+        nomeAtual: 'Usuário Teste',
+        emailAtual: 'teste@email.com',
+      ),
     );
   }
 }

@@ -8,7 +8,8 @@ import 'package:meu_apli/services/navigation_service.dart';
 
 class ApiService {
   static const String baseUrl =
-      "https://lanuginose-unsyllogistically-dianna.ngrok-free.dev";
+      "https://street-commotion-panther.ngrok-free.dev";
+    
 
   // ============================================================
   // SESSÃO (TOKENS)
@@ -1470,6 +1471,48 @@ class ApiService {
   }
 
   // ============================================================
+  // USUÁRIO - ATUALIZAR PERFIL (NOME / EMAIL)
+  // ============================================================
+
+  static Future<void> atualizarPerfil(
+    String nome,
+  
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/usuario/me',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'PUT',
+      url,
+      body: {
+        'nome': nome,
+      },
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao atualizar perfil',
+      );
+    } catch (_) {
+      throw Exception(
+        'Erro ao atualizar perfil: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+  // ============================================================
   // USUÁRIO - AVATAR
   // ============================================================
 
@@ -1494,6 +1537,49 @@ class ApiService {
     if (response.statusCode != 200) {
       throw Exception(
         'Erro ao atualizar avatar: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+    // ============================================================
+  // USUÁRIO - SENHA
+  // ============================================================
+
+  static Future<void> alterarSenha(
+    String senhaAtual,
+    String novaSenha,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/usuario/senha',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'PUT',
+      url,
+      body: {
+        'senha_atual': senhaAtual,
+        'nova_senha': novaSenha,
+      },
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao alterar senha',
+      );
+    } catch (_) {
+      throw Exception(
+        'Erro ao alterar senha: '
         '${response.statusCode}',
       );
     }
