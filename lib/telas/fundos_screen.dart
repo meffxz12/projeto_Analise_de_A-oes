@@ -1,13 +1,11 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'package:meu_apli/cores/coresglobais.dart';
-import 'package:meu_apli/services/apiservice.dart';
-import 'package:intl/intl.dart';
 import 'dart:async';
 
-// ─── Model ────────────────────────────────────────────────────────────────────
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import 'package:meu_apli/cores/coresglobais.dart';
+import 'package:meu_apli/services/apiservice.dart';
+
 class Fundo {
   final String codigo;
   final String nome;
@@ -25,106 +23,307 @@ class Fundo {
     required this.setor,
   });
 
-  factory Fundo.fromJson(Map<String, dynamic> j) => Fundo(
-        codigo: j['stock'] ?? j['symbol'] ?? '',
-        nome: j['name'] ?? j['longName'] ?? '',
-        preco: (j['close'] ?? j['regularMarketPrice'] ?? 0.0).toDouble(),
-        variacao: (j['change'] ?? j['regularMarketChangePercent'] ?? 0.0).toDouble(),
-        dividendYield: (j['dividendYield'] ?? 0.0).toDouble(),
-        setor: j['sector'] ?? j['segment'] ?? '',
-      );
+  factory Fundo.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    double toDouble(dynamic value) {
+      if (value is num) {
+        return value.toDouble();
+      }
+
+      return double.tryParse(
+            value?.toString() ?? '',
+          ) ??
+          0.0;
+    }
+
+    return Fundo(
+      codigo: (
+        json['stock'] ??
+        json['symbol'] ??
+        ''
+      ).toString(),
+      nome: (
+        json['name'] ??
+        json['shortName'] ??
+        json['longName'] ??
+        ''
+      ).toString(),
+      preco: toDouble(
+        json['close'] ??
+            json['regularMarketPrice'],
+      ),
+      variacao: toDouble(
+        json['change'] ??
+            json['regularMarketChangePercent'],
+      ),
+      dividendYield: toDouble(
+        json['dividendYield'],
+      ),
+      setor: (
+        json['sector'] ??
+        json['segment'] ??
+        ''
+      ).toString(),
+    );
+  }
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
 class FundosScreen extends StatefulWidget {
-  const FundosScreen({super.key});
+  const FundosScreen({
+    super.key,
+  });
 
   @override
-  State<FundosScreen> createState() => _FundosScreenState();
+  State<FundosScreen> createState() =>
+      _FundosScreenState();
 }
 
-class _FundosScreenState extends State<FundosScreen> {
-  final _token = dotenv.env['BRAPI_TOKEN'];
-  List<Fundo> _lista = [];
-  List<Fundo> _filtrada = [];
-  bool _loading = true;
-  String? _erro;
-  String _busca = '';
-  String _ordenar = 'Padrão';
+class _FundosScreenState
+    extends State<FundosScreen> {
 
-  // códigos já favoritados (pra estrela aparecer preenchida)
-  final Set<String> _favoritos = {};
+  final TextEditingController _buscaCtrl =
+      TextEditingController();
 
-  final _buscaCtrl = TextEditingController();
+  final ScrollController _scrollController =
+      ScrollController();
+
   Timer? _debounce;
 
-  final _currencyFormat = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+  final NumberFormat _currencyFormat =
+      NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: 'R\$',
+  );
+
+  final Set<String> _favoritos = {};
+
+  List<Fundo> _fundos = [];
+
+  bool _loading = true;
+  bool _carregandoMais = false;
+  bool _temMais = true;
+
+  String? _erro;
+
+  int _pagina = 1;
+
+  final int _limite = 50;
+
+  String _busca = '';
+
+  String _ordenar = 'Padrão';
 
   @override
   void initState() {
     super.initState();
-    _carregar();
+
+    _scrollController.addListener(
+      _verificarScroll,
+    );
+
+    _buscaCtrl.addListener(
+      _quandoBuscar,
+    );
+
     _carregarFavoritos();
-    _buscaCtrl.addListener(() {
-      if (_debounce?.isActive ?? false) _debounce!.cancel();
-      _debounce = Timer(const Duration(milliseconds: 300), () {
-        setState(() {
-          _busca = _buscaCtrl.text.trim().toUpperCase();
-          _aplicarFiltro();
-        });
-      });
-    });
+
+    _carregarFundos(
+      primeiraCarga: true,
+    );
   }
 
   @override
   void dispose() {
-    _buscaCtrl.dispose();
     _debounce?.cancel();
+
+    _buscaCtrl.dispose();
+
+    _scrollController.dispose();
+
     super.dispose();
   }
 
-  Future<void> _carregar() async {
-    setState(() { _loading = true; _erro = null; });
-    try {
-      final url = Uri.parse(
-        'https://brapi.dev/api/quote/list?limit=40&type=fund&sortBy=volume&sortOrder=desc&token=$_token',
-      );
-      final resp = await http.get(url).timeout(const Duration(seconds: 12));
-      if (resp.statusCode != 200) throw Exception('Erro ${resp.statusCode}');
+  // ============================================================
+  // SCROLL / PAGINAÇÃO
+  // ============================================================
 
-      final json = jsonDecode(resp.body) as Map<String, dynamic>;
-      final fundos = (json['stocks'] as List? ?? [])
-          .map((e) => Fundo.fromJson(e as Map<String, dynamic>))
-          .toList();
+  void _verificarScroll() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
 
-      setState(() {
-        _lista = fundos;
-        _aplicarFiltro();
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() { _erro = e.toString(); _loading = false; });
+    final position =
+        _scrollController.position;
+
+    if (position.pixels >=
+            position.maxScrollExtent - 500 &&
+        !_carregandoMais &&
+        _temMais &&
+        !_loading) {
+      _carregarProximaPagina();
     }
   }
+
+  // ============================================================
+  // BUSCA
+  // ============================================================
+
+  void _quandoBuscar() {
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+    }
+
+    _debounce = Timer(
+      const Duration(milliseconds: 500),
+      () {
+        final novaBusca =
+            _buscaCtrl.text.trim();
+
+        if (novaBusca == _busca) {
+          return;
+        }
+
+        _busca = novaBusca;
+
+        _carregarFundos(
+          primeiraCarga: true,
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // CARREGAR FUNDOS
+  // ============================================================
+
+  Future<void> _carregarFundos({
+    bool primeiraCarga = false,
+  }) async {
+    if (primeiraCarga) {
+      setState(() {
+        _loading = true;
+        _erro = null;
+        _pagina = 1;
+        _temMais = true;
+        _fundos = [];
+      });
+    }
+
+    try {
+      final data =
+          await ApiService.buscarFundos(
+        page: _pagina,
+        limit: _limite,
+        search: _busca,
+        sortBy:
+            _ordenar == 'Maior DY'
+                ? 'change'
+                : _ordenar == 'Menor Preço'
+                    ? 'close'
+                    : 'volume',
+        sortOrder:
+            _ordenar == 'Menor Preço'
+                ? 'asc'
+                : 'desc',
+      );
+
+      final stocks =
+          data['stocks'] as List? ?? [];
+
+      final novosFundos = stocks
+          .whereType<Map>()
+          .map(
+            (item) => Fundo.fromJson(
+              Map<String, dynamic>.from(
+                item,
+              ),
+            ),
+          )
+          .toList();
+
+      final hasNext =
+          data['hasNextPage'] == true;
+
+      if (!mounted) return;
+
+      setState(() {
+        if (_pagina == 1) {
+          _fundos = novosFundos;
+        } else {
+          _fundos.addAll(
+            novosFundos,
+          );
+        }
+
+        _temMais = hasNext;
+
+        _loading = false;
+
+        _carregandoMais = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _carregandoMais = false;
+        _erro = e.toString();
+      });
+    }
+  }
+
+  // ============================================================
+  // PRÓXIMA PÁGINA
+  // ============================================================
+
+  Future<void> _carregarProximaPagina() async {
+    if (!_temMais ||
+        _carregandoMais ||
+        _loading) {
+      return;
+    }
+
+    setState(() {
+      _carregandoMais = true;
+      _pagina++;
+    });
+
+    await _carregarFundos();
+  }
+
+  // ============================================================
+  // FAVORITOS
+  // ============================================================
 
   Future<void> _carregarFavoritos() async {
     try {
-      final favoritos = await ApiService.listarFavoritosFundos();
+      final favoritos =
+          await ApiService
+              .listarFavoritosFundos();
+
       if (!mounted) return;
+
       setState(() {
         _favoritos
           ..clear()
-          ..addAll(favoritos.map((f) => (f['codigo'] ?? '').toString()));
+          ..addAll(
+            favoritos.map(
+              (f) => (
+                f['codigo'] ?? ''
+              ).toString(),
+            ),
+          );
       });
-    } catch (_) {
-      // se falhar, só não mostra estrela preenchida — não bloqueia a tela
-    }
+    } catch (_) {}
   }
 
-  Future<void> _toggleFavorito(String codigo) async {
-    final jaFavoritado = _favoritos.contains(codigo);
+  Future<void> _toggleFavorito(
+    String codigo,
+  ) async {
+    final jaFavoritado =
+        _favoritos.contains(codigo);
 
-    // atualização otimista — já reflete na UI antes da resposta da API
     setState(() {
       if (jaFavoritado) {
         _favoritos.remove(codigo);
@@ -135,13 +334,19 @@ class _FundosScreenState extends State<FundosScreen> {
 
     try {
       if (jaFavoritado) {
-        await ApiService.removerFavoritoFundo(codigo);
+        await ApiService
+            .removerFavoritoFundo(
+          codigo,
+        );
       } else {
-        await ApiService.adicionarFavoritoFundo(codigo);
+        await ApiService
+            .adicionarFavoritoFundo(
+          codigo,
+        );
       }
     } catch (e) {
-      // reverte se a API falhar
       if (!mounted) return;
+
       setState(() {
         if (jaFavoritado) {
           _favoritos.add(codigo);
@@ -149,120 +354,41 @@ class _FundosScreenState extends State<FundosScreen> {
           _favoritos.remove(codigo);
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            e
+                .toString()
+                .replaceFirst(
+                  'Exception: ',
+                  '',
+                ),
+          ),
+        ),
       );
     }
   }
 
-  void _aplicarFiltro() {
-    var lista = _lista.where((f) {
-      if (_busca.isEmpty) return true;
-      return f.codigo.contains(_busca) ||
-          f.nome.toUpperCase().contains(_busca);
-    }).toList();
-
-    if (_ordenar == 'Maior DY') {
-      lista.sort((a, b) => b.dividendYield.compareTo(a.dividendYield));
-    } else if (_ordenar == 'Menor Preço') {
-      lista.sort((a, b) => a.preco.compareTo(b.preco));
-    }
-
-    _filtrada = lista;
-  }
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor:
+          Colors.grey[100],
       body: SafeArea(
         child: Column(
           children: [
-            // ── HEADER COM SETA DE VOLTAR ────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(10, 10, 20, 24),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: CoresGlobais.backgrounder),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      const Expanded(
-                        child: Text(
-                          'Fundos Imobiliários',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: TextField(
-                        controller: _buscaCtrl,
-                        textCapitalization: TextCapitalization.characters,
-                        decoration: const InputDecoration(
-                          hintText: 'Buscar fundo (ex: MXRF11)',
-                          hintStyle: TextStyle(color: Colors.grey),
-                          border: InputBorder.none,
-                          icon: Icon(Icons.search_rounded, color: Color(0xFF6A5AE0)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: ['Padrão', 'Maior DY', 'Menor Preço']
-                            .map((o) => _chipOrdem(o))
-                            .toList(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildHeader(),
 
-            // ── LISTA ─────────────────────────────────────────
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _erro != null
-                      ? _erroWidget()
-                      : _filtrada.isEmpty
-                          ? _vazioWidget()
-                          : RefreshIndicator(
-                              onRefresh: _carregar,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(15, 16, 15, 20),
-                                itemCount: _filtrada.length,
-                                itemBuilder: (_, i) => _fundoCard(_filtrada[i]),
-                              ),
-                            ),
+              child: _buildLista(),
             ),
           ],
         ),
@@ -270,25 +396,213 @@ class _FundosScreenState extends State<FundosScreen> {
     );
   }
 
-  Widget _chipOrdem(String label) {
-    final ativo = _ordenar == label;
+  // ============================================================
+  // HEADER
+  // ============================================================
+
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.fromLTRB(
+        10,
+        10,
+        20,
+        24,
+      ),
+      decoration:
+          const BoxDecoration(
+        gradient: LinearGradient(
+          colors:
+              CoresGlobais.backgrounder,
+        ),
+        borderRadius:
+            BorderRadius.only(
+          bottomLeft:
+              Radius.circular(28),
+          bottomRight:
+              Radius.circular(28),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons
+                      .arrow_back_ios_new_rounded,
+                  color: Colors.white,
+                ),
+                onPressed: () =>
+                    Navigator.pop(context),
+              ),
+              const Expanded(
+                child: Text(
+                  'Fundos',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 10,
+            ),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 14,
+              ),
+              decoration:
+                  BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.circular(
+                  14,
+                ),
+              ),
+              child: TextField(
+                controller: _buscaCtrl,
+                textCapitalization:
+                    TextCapitalization
+                        .characters,
+                decoration:
+                    InputDecoration(
+                  hintText:
+                      'Buscar fundo (ex: MXRF11)',
+                  hintStyle:
+                      const TextStyle(
+                    color: Colors.grey,
+                  ),
+                  border:
+                      InputBorder.none,
+                  icon:
+                      const Icon(
+                    Icons.search_rounded,
+                    color:
+                        Color(0xFF6A5AE0),
+                  ),
+                  suffixIcon:
+                      _busca.isNotEmpty
+                          ? IconButton(
+                              icon:
+                                  const Icon(
+                                Icons
+                                    .close_rounded,
+                                color:
+                                    Colors.grey,
+                              ),
+                              onPressed: () {
+                                _buscaCtrl
+                                    .clear();
+                              },
+                            )
+                          : null,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 10,
+            ),
+            child:
+                SingleChildScrollView(
+              scrollDirection:
+                  Axis.horizontal,
+              child: Row(
+                children: [
+                  'Padrão',
+                  'Maior DY',
+                  'Menor Preço',
+                ]
+                    .map(
+                      _chipOrdem,
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // CHIPS
+  // ============================================================
+
+  Widget _chipOrdem(
+    String label,
+  ) {
+    final ativo =
+        _ordenar == label;
+
     return GestureDetector(
       onTap: () {
-        setState(() { _ordenar = label; _aplicarFiltro(); });
+        if (_ordenar == label) {
+          return;
+        }
+
+        setState(() {
+          _ordenar = label;
+        });
+
+        _carregarFundos(
+          primeiraCarga: true,
+        );
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: BoxDecoration(
-          color: ativo ? Colors.white : Colors.white24,
-          borderRadius: BorderRadius.circular(20),
+        duration:
+            const Duration(
+          milliseconds: 200,
+        ),
+        margin:
+            const EdgeInsets.only(
+          right: 8,
+        ),
+        padding:
+            const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 7,
+        ),
+        decoration:
+            BoxDecoration(
+          color: ativo
+              ? Colors.white
+              : Colors.white24,
+          borderRadius:
+              BorderRadius.circular(
+            20,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: ativo ? const Color(0xFF6A5AE0) : Colors.white,
-            fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
+            color: ativo
+                ? const Color(
+                    0xFF6A5AE0,
+                  )
+                : Colors.white,
+            fontWeight: ativo
+                ? FontWeight.bold
+                : FontWeight.normal,
             fontSize: 13,
           ),
         ),
@@ -296,21 +610,113 @@ class _FundosScreenState extends State<FundosScreen> {
     );
   }
 
-  Widget _fundoCard(Fundo f) {
-    final pos = f.variacao >= 0;
-    final cor = pos ? const Color(0xFF1B8A5A) : const Color(0xFFCC2929);
-    final corFundo = pos ? const Color(0xFFE6F4ED) : const Color(0xFFFFEBEB);
-    final temDY = f.dividendYield > 0;
-    final favoritado = _favoritos.contains(f.codigo);
+  // ============================================================
+  // LISTA
+  // ============================================================
+
+  Widget _buildLista() {
+    if (_loading) {
+      return const Center(
+        child:
+            CircularProgressIndicator(),
+      );
+    }
+
+    if (_erro != null &&
+        _fundos.isEmpty) {
+      return _erroWidget();
+    }
+
+    if (_fundos.isEmpty) {
+      return _vazioWidget();
+    }
+
+    return RefreshIndicator(
+      onRefresh: () =>
+          _carregarFundos(
+        primeiraCarga: true,
+      ),
+      child: ListView.builder(
+        controller:
+            _scrollController,
+        padding:
+            const EdgeInsets.fromLTRB(
+          15,
+          16,
+          15,
+          20,
+        ),
+        itemCount:
+            _fundos.length +
+                (_carregandoMais
+                    ? 1
+                    : 0),
+        itemBuilder:
+            (context, index) {
+          if (index ==
+              _fundos.length) {
+            return const Padding(
+              padding:
+                  EdgeInsets.all(20),
+              child: Center(
+                child:
+                    CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          return _fundoCard(
+            _fundos[index],
+          );
+        },
+      ),
+    );
+  }
+
+  // ============================================================
+  // CARD
+  // ============================================================
+
+  Widget _fundoCard(
+    Fundo f,
+  ) {
+    final positivo =
+        f.variacao >= 0;
+
+    final cor = positivo
+        ? const Color(0xFF1B8A5A)
+        : const Color(0xFFCC2929);
+
+    final corFundo = positivo
+        ? const Color(0xFFE6F4ED)
+        : const Color(0xFFFFEBEB);
+
+    final favoritado =
+        _favoritos.contains(
+      f.codigo,
+    );
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+      margin:
+          const EdgeInsets.only(
+        bottom: 10,
+      ),
+      padding:
+          const EdgeInsets.all(14),
+      decoration:
+          BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius:
+            BorderRadius.circular(
+          16,
+        ),
         boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 5,
+            offset:
+                Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
@@ -318,96 +724,144 @@ class _FundosScreenState extends State<FundosScreen> {
           Container(
             width: 46,
             height: 46,
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(13),
+            decoration:
+                BoxDecoration(
+              color: Colors.orange
+                  .withOpacity(
+                0.12,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                13,
+              ),
             ),
             child: Center(
               child: Text(
-                f.codigo.length >= 2 ? f.codigo.substring(0, 2) : f.codigo,
-                style: const TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
+                f.codigo.length >= 2
+                    ? f.codigo.substring(
+                        0,
+                        2,
+                      )
+                    : f.codigo,
+                style:
+                    const TextStyle(
+                  color:
+                      Colors.orange,
+                  fontWeight:
+                      FontWeight.bold,
                   fontSize: 13,
                 ),
               ),
             ),
           ),
+
           const SizedBox(width: 12),
+
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
               children: [
-                Text(f.codigo,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15)),
-                Row(
-                  children: [
-                    if (f.nome.isNotEmpty)
-                      Flexible(
-                        child: Text(
-                          f.nome,
-                          style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    if (temDY) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6A5AE0).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'DY ${f.dividendYield.toStringAsFixed(1)}%',
-                          style: const TextStyle(
-                            color: Color(0xFF6A5AE0),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                Text(
+                  f.codigo,
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
+
+                if (f.nome
+                    .isNotEmpty)
+                  Text(
+                    f.nome,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.grey[500],
+                      fontSize: 11,
+                    ),
+                  ),
               ],
             ),
           ),
+
           Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment:
+                CrossAxisAlignment.end,
             children: [
               Text(
-                _currencyFormat.format(f.preco),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                _currencyFormat
+                    .format(
+                  f.preco,
+                ),
+                style:
+                    const TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
-              const SizedBox(height: 4),
+
+              const SizedBox(
+                height: 4,
+              ),
+
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: corFundo,
-                  borderRadius: BorderRadius.circular(8),
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 8,
+                  vertical: 3,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      corFundo,
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    8,
+                  ),
                 ),
                 child: Text(
-                  '${pos ? '+' : ''}${f.variacao.toStringAsFixed(2)}%',
-                  style: TextStyle(
+                  '${positivo ? '+' : ''}${f.variacao.toStringAsFixed(2)}%',
+                  style:
+                      TextStyle(
                     color: cor,
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight:
+                        FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 8),
+
+          const SizedBox(
+            width: 8,
+          ),
+
           GestureDetector(
-            onTap: () => _toggleFavorito(f.codigo),
+            onTap: () =>
+                _toggleFavorito(
+              f.codigo,
+            ),
             child: Icon(
-              favoritado ? Icons.star_rounded : Icons.star_outline_rounded,
-              color: favoritado ? Colors.amber : Colors.grey[400],
+              favoritado
+                  ? Icons
+                      .star_rounded
+                  : Icons
+                      .star_outline_rounded,
+              color: favoritado
+                  ? Colors.amber
+                  : Colors.grey[400],
               size: 24,
             ),
           ),
@@ -416,29 +870,80 @@ class _FundosScreenState extends State<FundosScreen> {
     );
   }
 
-  Widget _erroWidget() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, color: Colors.grey[400], size: 40),
-            const SizedBox(height: 8),
-            Text('Erro ao carregar',
-                style: TextStyle(color: Colors.grey[500])),
-            TextButton(
-                onPressed: _carregar, child: const Text('Tentar novamente')),
-          ],
-        ),
-      );
+  // ============================================================
+  // ERRO
+  // ============================================================
 
-  Widget _vazioWidget() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off_rounded, size: 56, color: Colors.grey[300]),
-            const SizedBox(height: 12),
-            Text('Nenhum fundo encontrado',
-                style: TextStyle(color: Colors.grey[400], fontSize: 15)),
-          ],
-        ),
-      );
+  Widget _erroWidget() {
+    return Center(
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.error_outline,
+            color:
+                Colors.grey[400],
+            size: 40,
+          ),
+          const SizedBox(
+            height: 8,
+          ),
+          Text(
+            'Erro ao carregar fundos',
+            style: TextStyle(
+              color:
+                  Colors.grey[500],
+            ),
+          ),
+          TextButton(
+            onPressed: () =>
+                _carregarFundos(
+              primeiraCarga: true,
+            ),
+            child: const Text(
+              'Tentar novamente',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // VAZIO
+  // ============================================================
+
+  Widget _vazioWidget() {
+    return Center(
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          Icon(
+            Icons
+                .search_off_rounded,
+            size: 56,
+            color:
+                Colors.grey[300],
+          ),
+          const SizedBox(
+            height: 12,
+          ),
+          Text(
+            _busca.isEmpty
+                ? 'Nenhum fundo encontrado'
+                : 'Nenhum fundo encontrado para "$_busca"',
+            textAlign:
+                TextAlign.center,
+            style: TextStyle(
+              color:
+                  Colors.grey[400],
+              fontSize: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

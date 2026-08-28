@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:meu_apli/services/apiservice.dart';
+import 'package:meu_apli/telas/auth/cadastro.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/telas/auth/login.dart';
@@ -76,10 +78,14 @@ class _BemVindoScreenState extends State<BemVindoScreen> {
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => LoginScreen()),
-                      ),
+                      onPressed: () async {
+                await ApiService.marcarBoasVindasVistas();
+                if (!context.mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => CadastroScreen()),
+                );
+              },
                       child: const Text(
                         'Começar',
                         style: TextStyle(

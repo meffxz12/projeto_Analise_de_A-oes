@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/componentes/opcaocard.dart';
 import 'package:meu_apli/componentes/videocard.dart';
@@ -15,22 +16,45 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() =>
-      _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  final TextEditingController
-      _buscaController =
+  // ==========================================================
+  // CONTROLLERS
+  // ==========================================================
+
+  final TextEditingController _buscaController =
       TextEditingController();
 
-  List<dynamic> _acoes = [];
-  List<dynamic> _fundos = [];
+  Timer? _debounce;
+
+  // ==========================================================
+  // RESULTADOS
+  // ==========================================================
+
+  List<dynamic> _resultadosAtivos = [];
+
   List<dynamic> _videos = [];
 
+  // ==========================================================
+  // ESTADO
+  // ==========================================================
+
   String _query = '';
-  bool _carregandoDados = true;
+
+  bool _pesquisandoAtivos = false;
+
+  bool _carregandoVideos = true;
+
+  String? _erroBusca;
+
+  // ==========================================================
+  // USUÁRIO / AVATAR
+  // ==========================================================
+
+  String _avatarAtual = 'avatar_1';
 
   // ==========================================================
   // NOTIFICAÇÕES
@@ -48,43 +72,203 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance
-        .addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
 
-    _carregarDadosParaBusca();
+    _carregarPerfil();
+
+    _carregarVideos();
 
     _carregarNotificacoesNaoLidas();
 
-    _timerNotificacoes =
-        Timer.periodic(
+    _timerNotificacoes = Timer.periodic(
       const Duration(seconds: 10),
       (_) {
-        _carregarNotificacoesNaoLidas();
+        if (mounted) {
+          _carregarNotificacoesNaoLidas();
+        }
       },
     );
 
-    _buscaController.addListener(() {
-      if (!mounted) return;
-
-      setState(() {
-        _query = _buscaController.text
-            .trim()
-            .toLowerCase();
-      });
-    });
+    _buscaController.addListener(
+      _quandoPesquisar,
+    );
   }
 
   // ==========================================================
-  // APP VOLTOU PARA PRIMEIRO PLANO
+  // CARREGAR PERFIL / AVATAR
+  // ==========================================================
+
+  Future<void> _carregarPerfil() async {
+    try {
+      final perfil = await ApiService.buscarPerfil();
+
+      if (!mounted) return;
+
+      final avatar = perfil['avatar']?.toString();
+
+      if (avatar != null && avatar.isNotEmpty) {
+        setState(() {
+          _avatarAtual = avatar;
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar avatar do usuário: $e');
+    }
+  }
+
+  // ==========================================================
+  // PESQUISA
+  // ==========================================================
+
+  void _quandoPesquisar() {
+    if (!mounted) return;
+
+    final texto = _buscaController.text.trim();
+
+    setState(() {
+      _query = texto;
+    });
+
+    _debounce?.cancel();
+
+    if (texto.isEmpty) {
+      setState(() {
+        _resultadosAtivos = [];
+        _pesquisandoAtivos = false;
+        _erroBusca = null;
+      });
+
+      return;
+    }
+
+    _debounce = Timer(
+      const Duration(milliseconds: 500),
+      () {
+        if (mounted) {
+          _pesquisarAtivos(texto);
+        }
+      },
+    );
+  }
+
+  Future<void> _pesquisarAtivos(
+    String texto,
+  ) async {
+    if (!mounted) return;
+
+    setState(() {
+      _pesquisandoAtivos = true;
+      _erroBusca = null;
+    });
+
+    try {
+      print('====================================');
+      print('INICIANDO PESQUISA');
+      print('BUSCA: $texto');
+      print('====================================');
+
+      final resultados =
+          await ApiService.pesquisarAtivos(
+        texto,
+        tipo: 'todos',
+        limit: 30,
+      );
+
+      if (!mounted) return;
+
+      print('====================================');
+      print('RESULTADOS RECEBIDOS');
+      print('QUANTIDADE: ${resultados.length}');
+      print('DADOS: $resultados');
+      print('====================================');
+
+      setState(() {
+        _resultadosAtivos = resultados;
+        _pesquisandoAtivos = false;
+        _erroBusca = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      print('====================================');
+      print('ERRO NA PESQUISA');
+      print('ERRO: $e');
+      print('====================================');
+
+      setState(() {
+        _pesquisandoAtivos = false;
+        _erroBusca = e
+            .toString()
+            .replaceFirst(
+              'Exception: ',
+              '',
+            );
+      });
+    }
+  }
+
+  // ==========================================================
+  // VÍDEOS
+  // ==========================================================
+
+  Future<void> _carregarVideos() async {
+    try {
+      final videos =
+          await ApiService.listarVideos();
+
+      if (!mounted) return;
+
+      setState(() {
+        _videos = videos;
+        _carregandoVideos = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _carregandoVideos = false;
+      });
+
+      print(
+        'Erro ao carregar vídeos: $e',
+      );
+    }
+  }
+
+  // ==========================================================
+  // CICLO DE VIDA
   // ==========================================================
 
   @override
   void didChangeAppLifecycleState(
     AppLifecycleState state,
   ) {
-    if (state ==
-        AppLifecycleState.resumed) {
-      _carregarNotificacoesNaoLidas();
+    if (state == AppLifecycleState.resumed) {
+      if (mounted) {
+        _carregarNotificacoesNaoLidas();
+        _carregarPerfil();
+      }
+    }
+  }
+
+  // ==========================================================
+  // NOTIFICAÇÕES
+  // ==========================================================
+
+  Future<void> _carregarNotificacoesNaoLidas() async {
+    try {
+      final quantidade =
+          await ApiService.contarNotificacoesNaoLidas();
+
+      if (!mounted) return;
+
+      setState(() {
+        _notificacoesNaoLidas = quantidade;
+      });
+    } catch (e) {
+      print(
+        'Erro ao carregar notificações: $e',
+      );
     }
   }
 
@@ -94,10 +278,15 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance
-        .removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
 
     _timerNotificacoes?.cancel();
+
+    _debounce?.cancel();
+
+    _buscaController.removeListener(
+      _quandoPesquisar,
+    );
 
     _buscaController.dispose();
 
@@ -105,138 +294,22 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ==========================================================
-  // NOTIFICAÇÕES NÃO LIDAS
-  // ==========================================================
-
-  Future<void>
-      _carregarNotificacoesNaoLidas() async {
-    try {
-      final quantidade =
-          await ApiService
-              .contarNotificacoesNaoLidas();
-
-      if (!mounted) return;
-
-      setState(() {
-        _notificacoesNaoLidas =
-            quantidade;
-      });
-    } catch (e) {
-      print(
-        'Erro ao carregar notificações não lidas: $e',
-      );
-    }
-  }
-
-  // ==========================================================
-  // CARREGAR DADOS
-  // ==========================================================
-
-  Future<void>
-      _carregarDadosParaBusca() async {
-    try {
-      final resultados =
-          await Future.wait([
-        ApiService.buscarAcoes(),
-        ApiService.buscarFundos(),
-        ApiService.listarVideos(),
-      ]);
-
-      if (!mounted) return;
-
-      setState(() {
-        _acoes = resultados[0];
-        _fundos = resultados[1];
-        _videos = resultados[2];
-        _carregandoDados = false;
-      });
-    } catch (e) {
-      print(
-        'Erro ao carregar dados: $e',
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _carregandoDados = false;
-      });
-    }
-  }
-
-  // ==========================================================
-  // BUSCA
-  // ==========================================================
-
-  bool _bate(
-    dynamic item,
-    List<String> campos,
-  ) {
-    for (final campo in campos) {
-      final valor =
-          item[campo]
-                  ?.toString()
-                  .toLowerCase() ??
-              '';
-
-      if (valor.contains(_query)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  List<dynamic>
-      get _acoesFiltradas =>
-          _acoes
-              .where(
-                (a) => _bate(
-                  a,
-                  ['codigo', 'nome'],
-                ),
-              )
-              .toList();
-
-  List<dynamic>
-      get _fundosFiltrados =>
-          _fundos
-              .where(
-                (f) => _bate(
-                  f,
-                  ['codigo', 'nome'],
-                ),
-              )
-              .toList();
-
-  List<dynamic>
-      get _videosFiltrados =>
-          _videos
-              .where(
-                (v) => _bate(
-                  v,
-                  ['title', 'titulo'],
-                ),
-              )
-              .toList();
-
-  bool get _pesquisando =>
-      _query.isNotEmpty;
-
-  // ==========================================================
   // BUILD
   // ==========================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      backgroundColor:
-          Colors.grey[100],
+      backgroundColor: Colors.grey[100],
       body: SafeArea(
         child: Column(
           children: [
             _buildHeader(context),
+
             Expanded(
-              child: _pesquisando
+              child: _query.isNotEmpty
                   ? _buildResultadosBusca()
                   : _buildConteudoPadrao(),
             ),
@@ -247,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ==========================================================
-  // CONTEÚDO PRINCIPAL
+  // CONTEÚDO PADRÃO
   // ==========================================================
 
   Widget _buildConteudoPadrao() {
@@ -263,8 +336,7 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(height: 12),
 
           Padding(
-            padding:
-                const EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               horizontal: 15,
             ),
             child: Row(
@@ -276,19 +348,19 @@ class _HomeScreenState extends State<HomeScreen>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              FundosScreen(),
+                          builder: (_) =>
+                              const FundosScreen(),
                         ),
                       );
                     },
-                    color:
-                        CoresGlobais.botao2,
+                    color: CoresGlobais.botao2,
                     textColor: Colors.white,
-                    icon: Icons
-                        .pie_chart_rounded,
+                    icon: Icons.pie_chart_rounded,
                   ),
                 ),
+
                 const SizedBox(width: 12),
+
                 Expanded(
                   child: OpcaoCard(
                     text: 'Ações',
@@ -296,16 +368,14 @@ class _HomeScreenState extends State<HomeScreen>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              AcoesScreen(),
+                          builder: (_) =>
+                              const AcoesScreen(),
                         ),
                       );
                     },
-                    color:
-                        CoresGlobais.botao2,
+                    color: CoresGlobais.botao2,
                     textColor: Colors.white,
-                    icon: Icons
-                        .show_chart_rounded,
+                    icon: Icons.show_chart_rounded,
                   ),
                 ),
               ],
@@ -315,44 +385,7 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(height: 12),
 
           _card(
-            child: const Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Vídeos em destaque',
-                  style: TextStyle(
-                    fontWeight:
-                        FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                SizedBox(height: 14),
-                VideoCard(
-                  title:
-                      'Como analisar ações',
-                  videoId:
-                      'bkcMlHEtXsI',
-                  duration: '17:10',
-                ),
-                SizedBox(height: 10),
-                VideoCard(
-                  title:
-                      'O que são fundos imobiliários?',
-                  videoId:
-                      'vZ64S8dFpEM',
-                  duration: '9:54',
-                ),
-                SizedBox(height: 10),
-                VideoCard(
-                  title:
-                      'Análise Técnica para Iniciantes',
-                  videoId:
-                      '1tbjXu6oHqI',
-                  duration: '10:08',
-                ),
-              ],
-            ),
+            child: _buildVideos(),
           ),
 
           const SizedBox(height: 20),
@@ -362,111 +395,351 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ==========================================================
-  // RESULTADOS DA BUSCA
+  // VÍDEOS
   // ==========================================================
 
-  Widget _buildResultadosBusca() {
-    if (_carregandoDados) {
+  Widget _buildVideos() {
+    if (_carregandoVideos) {
       return const Center(
-        child:
-            CircularProgressIndicator(),
-      );
-    }
-
-    final semResultados =
-        _acoesFiltradas.isEmpty &&
-        _fundosFiltrados.isEmpty &&
-        _videosFiltrados.isEmpty;
-
-    if (semResultados) {
-      return Center(
-        child: Text(
-          'Nenhum resultado para "$_query"',
-          style: TextStyle(
-            color: Colors.grey[500],
-          ),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: CircularProgressIndicator(),
         ),
       );
     }
 
-    return ListView(
-      padding:
-          const EdgeInsets.all(15),
+    if (_videos.isEmpty) {
+      return Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Vídeos em destaque',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Nenhum vídeo disponível.',
+                style: TextStyle(
+                  color: Colors.grey[500],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // ========================================================
+    // VÍDEOS MAIS RECENTES
+    // ========================================================
+
+    final videosRecentes =
+        List<dynamic>.from(_videos);
+
+    // A API normalmente já retorna os vídeos
+    // em ordem de cadastro. Mantemos apenas
+    // os 3 primeiros para a Home.
+
+    final quantidade =
+        videosRecentes.length > 3
+            ? 3
+            : videosRecentes.length;
+
+    final ultimosVideos =
+        videosRecentes.take(quantidade).toList();
+
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
       children: [
-        if (_acoesFiltradas.isNotEmpty) ...[
-          _sectionLabel('Ações'),
-          ..._acoesFiltradas.map(
-            (a) => ListTile(
-              leading: const Icon(
-                Icons.show_chart_rounded,
-              ),
-              title: Text(
-                a['codigo'] ?? '',
-              ),
-              subtitle: Text(
-                a['nome'] ?? '',
-              ),
-            ),
+        const Text(
+          'Últimos vídeos',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
-        ],
+        ),
 
-        if (_fundosFiltrados.isNotEmpty) ...[
-          _sectionLabel('Fundos'),
-          ..._fundosFiltrados.map(
-            (f) => ListTile(
-              leading: const Icon(
-                Icons.pie_chart_rounded,
-              ),
-              title: Text(
-                f['codigo'] ?? '',
-              ),
-              subtitle: Text(
-                f['nome'] ?? '',
-              ),
-            ),
-          ),
-        ],
+        const SizedBox(height: 14),
 
-        if (_videosFiltrados.isNotEmpty) ...[
-          _sectionLabel('Vídeos'),
-          ..._videosFiltrados.map(
-            (v) => ListTile(
-              leading: const Icon(
-                Icons
-                    .play_circle_outline_rounded,
+        ...ultimosVideos.map(
+          (video) {
+            final titulo =
+                video['titulo']?.toString() ??
+                    'Vídeo';
+
+            final url =
+                video['url']?.toString() ??
+                    '';
+
+            final duracao =
+                video['duracao']?.toString() ??
+                    '';
+
+            // ==================================================
+            // PEGA O ID DO YOUTUBE
+            // ==================================================
+
+            String videoId = '';
+
+            if (url.contains('v=')) {
+              videoId =
+                  url.split('v=').last.split('&').first;
+            } else if (url.contains('youtu.be/')) {
+              videoId =
+                  url.split('youtu.be/').last.split('?').first;
+            } else if (url.contains('/shorts/')) {
+              videoId =
+                  url.split('/shorts/').last.split('?').first;
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(
+                bottom: 10,
               ),
-              title: Text(
-                v['title'] ??
-                    v['titulo'] ??
-                    '',
+              child: VideoCard(
+                title: titulo,
+                videoId: videoId,
+                duration: duracao,
               ),
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ],
     );
   }
 
   // ==========================================================
-  // TÍTULO DA SEÇÃO
+  // RESULTADOS DA BUSCA
   // ==========================================================
 
-  Widget _sectionLabel(String label) {
-    return Padding(
-      padding:
-          const EdgeInsets.only(
-        top: 8,
-        bottom: 4,
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontWeight:
-              FontWeight.bold,
-          fontSize: 15,
+  Widget _buildResultadosBusca() {
+    if (_pesquisandoAtivos) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_erroBusca != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 45,
+                color: Colors.grey[400],
+              ),
+
+              const SizedBox(height: 10),
+
+              Text(
+                _erroBusca!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey[600],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              TextButton(
+                onPressed: () {
+                  _pesquisarAtivos(_query);
+                },
+                child: const Text(
+                  'Tentar novamente',
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+      );
+    }
+
+    if (_resultadosAtivos.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: 56,
+              color: Colors.grey[300],
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              'Nenhum ativo encontrado',
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(15),
+      itemCount: _resultadosAtivos.length,
+      itemBuilder: (context, index) {
+        final ativo =
+            _resultadosAtivos[index];
+
+        final codigo =
+            ativo['stock']?.toString() ?? '';
+
+        final nome =
+            ativo['name']?.toString() ?? '';
+
+        final tipo =
+            ativo['type']?.toString() ?? '';
+
+        final preco =
+            ativo['close'];
+
+        final tipoNormalizado =
+            tipo.toLowerCase();
+
+        final bool isFundo =
+            tipoNormalizado == 'fund' ||
+            tipoNormalizado == 'funds' ||
+            tipoNormalizado == 'fii';
+
+        final bool isBdr =
+            tipoNormalizado == 'bdr';
+
+        String textoTipo;
+
+        if (isFundo) {
+          textoTipo =
+              'Fundo Imobiliário';
+        } else if (isBdr) {
+          textoTipo = 'BDR';
+        } else {
+          textoTipo = 'Ação';
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(
+            bottom: 10,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius:
+                BorderRadius.circular(16),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 5,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 6,
+            ),
+            leading: Container(
+              width: 45,
+              height: 45,
+              decoration: BoxDecoration(
+                color: isFundo
+                    ? Colors.orange
+                        .withOpacity(0.12)
+                    : CoresGlobais.botao2
+                        .withOpacity(0.12),
+                borderRadius:
+                    BorderRadius.circular(12),
+              ),
+              child: Icon(
+                isFundo
+                    ? Icons.pie_chart_rounded
+                    : Icons.show_chart_rounded,
+                color: isFundo
+                    ? Colors.orange
+                    : CoresGlobais.botao2,
+              ),
+            ),
+            title: Text(
+              codigo,
+              style: const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                if (nome.isNotEmpty)
+                  Text(
+                    nome,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                    ),
+                  ),
+
+                const SizedBox(height: 2),
+
+                Text(
+                  textoTipo,
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+            trailing: preco != null
+                ? Text(
+                    'R\$ ${_formatarPreco(preco)}',
+                    style: const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  )
+                : null,
+          ),
+        );
+      },
     );
+  }
+
+  // ==========================================================
+  // FORMATAR PREÇO
+  // ==========================================================
+
+  String _formatarPreco(dynamic valor) {
+    final numero =
+        double.tryParse(
+              valor.toString(),
+            ) ??
+            0;
+
+    return numero.toStringAsFixed(2);
   }
 
   // ==========================================================
@@ -478,25 +751,19 @@ class _HomeScreenState extends State<HomeScreen>
   ) {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         20,
         20,
         20,
         24,
       ),
-      decoration:
-          const BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors:
-              CoresGlobais.backgrounder,
+          colors: CoresGlobais.backgrounder,
         ),
-        borderRadius:
-            BorderRadius.only(
-          bottomLeft:
-              Radius.circular(28),
-          bottomRight:
-              Radius.circular(28),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
         ),
       ),
       child: Row(
@@ -507,8 +774,7 @@ class _HomeScreenState extends State<HomeScreen>
                   const EdgeInsets.symmetric(
                 horizontal: 14,
               ),
-              decoration:
-                  BoxDecoration(
+              decoration: BoxDecoration(
                 color: Colors.white24,
                 borderRadius:
                     BorderRadius.circular(30),
@@ -518,23 +784,20 @@ class _HomeScreenState extends State<HomeScreen>
                     _buscaController,
                 decoration:
                     InputDecoration(
-                  hintText:
-                      'Buscar ativos',
+                  hintText: 'Buscar ativos',
                   hintStyle:
                       const TextStyle(
-                    color:
-                        Colors.white70,
+                    color: Colors.white70,
                   ),
                   border:
                       InputBorder.none,
                   icon:
                       const Icon(
                     Icons.search_rounded,
-                    color:
-                        Colors.white,
+                    color: Colors.white,
                   ),
                   suffixIcon:
-                      _pesquisando
+                      _query.isNotEmpty
                           ? IconButton(
                               icon:
                                   const Icon(
@@ -552,8 +815,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
                 style:
                     const TextStyle(
-                  color:
-                      Colors.white,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -561,21 +823,24 @@ class _HomeScreenState extends State<HomeScreen>
 
           const SizedBox(width: 8),
 
-          // ==================================================
+          // ====================================================
           // NOTIFICAÇÕES
-          // ==================================================
+          // ====================================================
 
           InkWell(
             onTap: () async {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
+                  builder: (_) =>
                       const NotificacoesScreen(),
                 ),
               );
 
-              await _carregarNotificacoesNaoLidas();
+              if (!mounted) return;
+
+              await
+                  _carregarNotificacoesNaoLidas();
             },
             borderRadius:
                 BorderRadius.circular(20),
@@ -590,8 +855,7 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Icon(
                     Icons
                         .notifications_rounded,
-                    color:
-                        Colors.white,
+                    color: Colors.white,
                   ),
                 ),
 
@@ -614,12 +878,18 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                       decoration:
                           BoxDecoration(
-                        color: Colors.red,
-                        borderRadius:
-                            BorderRadius.circular(
-                          10,
+                        color:
+                            const Color.fromARGB(
+                          255,
+                          168,
+                          37,
+                          28,
                         ),
-                        border: Border.all(
+                        borderRadius:
+                            BorderRadius
+                                .circular(10),
+                        border:
+                            Border.all(
                           color:
                               Colors.white,
                           width: 1.5,
@@ -650,32 +920,41 @@ class _HomeScreenState extends State<HomeScreen>
 
           const SizedBox(width: 8),
 
-          // ==================================================
-          // PERFIL
-          // ==================================================
+          // ====================================================
+          // PERFIL / AVATAR DO USUÁRIO
+          // ====================================================
 
           InkWell(
             onTap: () async {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      PerfilScreen(),
+                  builder: (_) =>
+                      const PerfilScreen(),
                 ),
               );
 
-              await _carregarNotificacoesNaoLidas();
+              if (!mounted) return;
+
+              // Depois que o usuário volta
+              // do perfil, busca novamente
+              // o avatar atualizado.
+
+              await _carregarPerfil();
+
+              await
+                  _carregarNotificacoesNaoLidas();
             },
             borderRadius:
                 BorderRadius.circular(20),
-            child: const CircleAvatar(
+            child: CircleAvatar(
               radius: 20,
               backgroundColor:
                   Colors.white24,
-              child: Icon(
-                Icons.person_rounded,
-                color:
-                    Colors.white,
+              backgroundImage: AssetImage(
+                avatarAssetPath(
+                  _avatarAtual,
+                ),
               ),
             ),
           ),
@@ -692,14 +971,12 @@ class _HomeScreenState extends State<HomeScreen>
     required Widget child,
   }) {
     return Container(
-      margin:
-          const EdgeInsets.symmetric(
+      margin: const EdgeInsets.symmetric(
         horizontal: 15,
       ),
       padding:
           const EdgeInsets.all(16),
-      decoration:
-          BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius:
             BorderRadius.circular(20),

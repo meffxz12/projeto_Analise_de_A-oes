@@ -1,7 +1,12 @@
+import 'dart:convert';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'package:meu_apli/services/apiservice.dart';
+import 'package:meu_apli/services/navigation_service.dart';
+import 'package:meu_apli/telas/home/ensino.dart';
 
 class NotificationService {
   static final FirebaseMessaging _messaging =
@@ -9,7 +14,7 @@ class NotificationService {
 
   static final FlutterLocalNotificationsPlugin
       _localNotifications =
-          FlutterLocalNotificationsPlugin();
+      FlutterLocalNotificationsPlugin();
 
   // ============================================================
   // CANAL
@@ -19,8 +24,7 @@ class NotificationService {
       AndroidNotificationChannel(
     'investserv_notifications',
     'InvestServ',
-    description:
-        'Notificações do aplicativo InvestServ',
+    description: 'Notificações do aplicativo InvestServ',
     importance: Importance.high,
     playSound: true,
     enableVibration: true,
@@ -36,27 +40,146 @@ class NotificationService {
   ) async {
     print('====================================');
     print('NOTIFICAÇÃO RECEBIDA EM BACKGROUND');
-    print('Título: ${message.notification?.title}');
-    print('Mensagem: ${message.notification?.body}');
-    print('====================================');
 
-    // IMPORTANTE:
-    // Se o Firebase já recebeu uma mensagem do tipo
-    // "notification", o próprio Android mostra a
-    // notificação quando o app está em background.
-    //
-    // Portanto, não mostramos outra local aqui.
+    print(
+      'Título: ${message.notification?.title}',
+    );
+
+    print(
+      'Mensagem: ${message.notification?.body}',
+    );
+
+    print(
+      'Dados: ${message.data}',
+    );
+
+    print('====================================');
   }
 
   // ============================================================
-  // NOTIFICAÇÃO LOCAL
+  // PROCESSAR DADOS DA NOTIFICAÇÃO
+  // ============================================================
+
+  static void _processarDadosNotificacao(
+    Map<String, dynamic> data,
+  ) {
+    print('====================================');
+    print('PROCESSANDO NOTIFICAÇÃO');
+    print('Dados recebidos: $data');
+    print('====================================');
+
+    final tipo = (
+      data['tipo'] ??
+      data['destino']
+    )?.toString();
+
+    print(
+      'TIPO DA NOTIFICAÇÃO: $tipo',
+    );
+
+    // ==========================================================
+    // MATERIAL
+    // ==========================================================
+
+    if (tipo == 'MATERIAL') {
+      final materialIdString =
+          data['material_id']?.toString();
+
+      final url = (
+        data['url'] ??
+        data['arquivo']
+      )?.toString();
+
+      final materialId =
+          int.tryParse(
+        materialIdString ?? '',
+      );
+
+      print('====================================');
+      print('TIPO: MATERIAL');
+      print('MATERIAL ID: $materialId');
+      print('URL: $url');
+      print('====================================');
+
+      if (materialId == null) {
+        print(
+          'ERRO: material_id inválido.',
+        );
+        return;
+      }
+
+      _abrirMaterial(
+        materialId: materialId,
+        url: url,
+      );
+
+      return;
+    }
+
+    print(
+      'Notificação sem ação configurada.',
+    );
+  }
+
+  // ============================================================
+  // ABRIR MATERIAL
+  // ============================================================
+
+  static Future<void> _abrirMaterial({
+    required int materialId,
+    String? url,
+  }) async {
+    print('====================================');
+    print('ABRINDO MATERIAL DA NOTIFICAÇÃO');
+    print('ID: $materialId');
+    print('URL: $url');
+    print('====================================');
+
+    // ==========================================================
+    // TENTAR PEGAR O NAVIGATOR
+    // ==========================================================
+
+    final navigator = navigatorKey.currentState;
+
+    if (navigator == null) {
+      print(
+        'Navigator ainda não está disponível.',
+      );
+
+      return;
+    }
+
+    try {
+      await navigator.push(
+        MaterialPageRoute(
+          builder: (_) => EnsinoScreen(
+            materialIdInicial: materialId,
+            urlMaterialInicial: url,
+          ),
+        ),
+      );
+
+      print(
+        'MATERIAL ABERTO COM SUCESSO!',
+      );
+    } catch (e) {
+      print(
+        'ERRO AO ABRIR MATERIAL: $e',
+      );
+    }
+  }
+
+  // ============================================================
+  // MOSTRAR NOTIFICAÇÃO LOCAL
   // ============================================================
 
   static Future<void> _mostrarNotificacaoLocal(
     String titulo,
     String mensagem,
+    Map<String, dynamic> data,
   ) async {
-    const AndroidNotificationDetails androidDetails =
+    const AndroidNotificationDetails
+        androidDetails =
         AndroidNotificationDetails(
       'investserv_notifications',
       'InvestServ',
@@ -69,17 +192,66 @@ class NotificationService {
       icon: '@mipmap/ic_launcher',
     );
 
-    const NotificationDetails notificationDetails =
+    const NotificationDetails
+        notificationDetails =
         NotificationDetails(
       android: androidDetails,
     );
 
     await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      DateTime.now()
+              .millisecondsSinceEpoch ~/
+          1000,
       titulo,
       mensagem,
       notificationDetails,
+      payload: jsonEncode(data),
     );
+  }
+
+  // ============================================================
+  // CLIQUE NA NOTIFICAÇÃO LOCAL
+  // ============================================================
+
+  static void _aoClicarNotificacaoLocal(
+    NotificationResponse response,
+  ) {
+    print('====================================');
+    print(
+      'USUÁRIO TOCOU NA NOTIFICAÇÃO LOCAL',
+    );
+
+    print(
+      'Payload: ${response.payload}',
+    );
+
+    print('====================================');
+
+    if (response.payload == null ||
+        response.payload!.isEmpty) {
+      print(
+        'Payload vazio.',
+      );
+      return;
+    }
+
+    try {
+      final Map<String, dynamic> data =
+          Map<String, dynamic>.from(
+        jsonDecode(
+          response.payload!,
+        ),
+      );
+
+      _processarDadosNotificacao(
+        data,
+      );
+    } catch (e) {
+      print(
+        'Erro ao processar payload '
+        'da notificação: $e',
+      );
+    }
   }
 
   // ============================================================
@@ -87,11 +259,13 @@ class NotificationService {
   // ============================================================
 
   static Future<void> initialize() async {
-    print('INICIANDO NOTIFICATION SERVICE...');
+    print(
+      'INICIANDO NOTIFICATION SERVICE...',
+    );
 
-    // ----------------------------------------------------------
-    // LOCAL NOTIFICATIONS
-    // ----------------------------------------------------------
+    // ==========================================================
+    // NOTIFICAÇÕES LOCAIS
+    // ==========================================================
 
     const AndroidInitializationSettings
         androidSettings =
@@ -99,7 +273,8 @@ class NotificationService {
       '@mipmap/ic_launcher',
     );
 
-    const InitializationSettings settings =
+    const InitializationSettings
+        settings =
         InitializationSettings(
       android: androidSettings,
     );
@@ -107,25 +282,23 @@ class NotificationService {
     await _localNotifications.initialize(
       settings,
       onDidReceiveNotificationResponse:
-          (NotificationResponse response) {
-        print(
-          'USUÁRIO TOCOU NA NOTIFICAÇÃO',
-        );
-      },
+          _aoClicarNotificacaoLocal,
     );
 
-    // ----------------------------------------------------------
-    // CRIA CANAL
-    // ----------------------------------------------------------
+    // ==========================================================
+    // CANAL
+    // ==========================================================
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_channel);
+        ?.createNotificationChannel(
+          _channel,
+        );
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // PERMISSÃO FCM
-    // ----------------------------------------------------------
+    // ==========================================================
 
     final NotificationSettings permission =
         await _messaging.requestPermission(
@@ -140,20 +313,21 @@ class NotificationService {
       '${permission.authorizationStatus}',
     );
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // PERMISSÃO ANDROID 13+
-    // ----------------------------------------------------------
+    // ==========================================================
 
     final androidPlugin =
         _localNotifications
             .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin>();
 
-    await androidPlugin?.requestNotificationsPermission();
+    await androidPlugin
+        ?.requestNotificationsPermission();
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // TOKEN
-    // ----------------------------------------------------------
+    // ==========================================================
 
     final String? token =
         await _messaging.getToken();
@@ -163,9 +337,9 @@ class NotificationService {
     print(token);
     print('====================================');
 
-    // ----------------------------------------------------------
+    // ==========================================================
     // TOKEN REFRESH
-    // ----------------------------------------------------------
+    // ==========================================================
 
     _messaging.onTokenRefresh.listen(
       (newToken) async {
@@ -209,77 +383,156 @@ class NotificationService {
         print(
           'NOTIFICAÇÃO RECEBIDA COM APP ABERTO',
         );
+
         print(
-          'Título: ${message.notification?.title}',
+          'Título: '
+          '${message.notification?.title}',
         );
+
         print(
-          'Mensagem: ${message.notification?.body}',
+          'Mensagem: '
+          '${message.notification?.body}',
         );
+
+        print(
+          'Dados: '
+          '${message.data}',
+        );
+
         print('====================================');
 
         final titulo =
             message.notification?.title ??
-                message.data['titulo'] ??
-                'InvestServ';
+            message.data['titulo'] ??
+            'InvestServ';
 
         final mensagem =
             message.notification?.body ??
-                message.data['mensagem'] ??
-                '';
+            message.data['mensagem'] ??
+            '';
 
-        if (titulo.isNotEmpty &&
-            mensagem.isNotEmpty) {
+        if (titulo.toString().isNotEmpty &&
+            mensagem.toString().isNotEmpty) {
           await _mostrarNotificacaoLocal(
-            titulo,
-            mensagem,
+            titulo.toString(),
+            mensagem.toString(),
+            message.data,
           );
         }
       },
     );
 
     // ==========================================================
-    // USUÁRIO CLICOU
+    // APP EM BACKGROUND
+    // USUÁRIO CLICOU NA NOTIFICAÇÃO FCM
     // ==========================================================
 
     FirebaseMessaging.onMessageOpenedApp.listen(
       (RemoteMessage message) {
         print('====================================');
         print(
-          'USUÁRIO CLICOU NA NOTIFICAÇÃO',
+          'USUÁRIO CLICOU NA NOTIFICAÇÃO FCM',
         );
+
         print(
-          'Título: ${message.notification?.title}',
+          'Título: '
+          '${message.notification?.title}',
         );
+
         print(
-          'Mensagem: ${message.notification?.body}',
+          'Mensagem: '
+          '${message.notification?.body}',
         );
+
+        print(
+          'Dados: '
+          '${message.data}',
+        );
+
         print('====================================');
+
+        _processarDadosNotificacao(
+          message.data,
+        );
       },
     );
 
     // ==========================================================
-    // APP ABERTO ATRAVÉS DA NOTIFICAÇÃO
+    // NÃO PROCESSAR getInitialMessage AQUI
     // ==========================================================
+    //
+    // O app ainda não foi montado neste momento.
+    //
+    // O processamento será feito pelo main.dart depois
+    // do runApp().
+    //
+    // ==========================================================
+
+    print(
+      'NOTIFICATION SERVICE INICIALIZADO!',
+    );
+  }
+
+  // ============================================================
+  // PROCESSAR NOTIFICAÇÃO QUE ABRIU O APP
+  // ============================================================
+
+  static Future<void> processarInitialMessage() async {
+    print('====================================');
+    print(
+      'VERIFICANDO NOTIFICAÇÃO QUE ABRIU O APP',
+    );
+    print('====================================');
 
     final RemoteMessage? initialMessage =
         await _messaging.getInitialMessage();
 
-    if (initialMessage != null) {
-      print('====================================');
+    if (initialMessage == null) {
       print(
-        'APP ABERTO ATRAVÉS DE UMA NOTIFICAÇÃO',
+        'Nenhuma notificação abriu o aplicativo.',
       );
-      print(
-        'Título: '
-        '${initialMessage.notification?.title}',
-      );
-      print(
-        'Mensagem: '
-        '${initialMessage.notification?.body}',
-      );
-      print('====================================');
+      return;
     }
 
-    print('NOTIFICATION SERVICE INICIALIZADO!');
+    print('====================================');
+    print(
+      'APP FOI ABERTO ATRAVÉS DE UMA NOTIFICAÇÃO',
+    );
+
+    print(
+      'Título: '
+      '${initialMessage.notification?.title}',
+    );
+
+    print(
+      'Mensagem: '
+      '${initialMessage.notification?.body}',
+    );
+
+    print(
+      'Dados: '
+      '${initialMessage.data}',
+    );
+
+    print('====================================');
+
+    // ==========================================================
+    // ESPERAR O MATERIALAPP ESTAR MONTADO
+    // ==========================================================
+
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) {
+        Future.delayed(
+          const Duration(
+            milliseconds: 700,
+          ),
+          () {
+            _processarDadosNotificacao(
+              initialMessage.data,
+            );
+          },
+        );
+      },
+    );
   }
 }

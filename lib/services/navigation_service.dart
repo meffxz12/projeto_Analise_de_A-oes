@@ -1,16 +1,50 @@
 import 'package:flutter/material.dart';
+
 import 'package:meu_apli/telas/auth/login.dart';
+import 'package:meu_apli/telas/home/ensino.dart';
 
-/// Key global do Navigator, registrada no MaterialApp (ver main.dart).
-/// Permite navegar de dentro de um service (sem context), por exemplo
-/// quando a sessão expira em qualquer chamada de API.
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+/// Key global do Navigator.
+///
+/// É registrada no MaterialApp no main.dart.
+/// Permite navegar a partir de services sem precisar de BuildContext.
+final GlobalKey<NavigatorState> navigatorKey =
+    GlobalKey<NavigatorState>();
 
-/// Manda o usuário de volta pro login e limpa todo o histórico de telas.
-/// Chamado quando o access_token expira E o refresh_token também falha.
+// ============================================================
+// REDIRECIONAR PARA LOGIN
+// ============================================================
+
 void redirecionarParaLogin() {
   navigatorKey.currentState?.pushAndRemoveUntil(
-    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    MaterialPageRoute(
+      builder: (_) => const LoginScreen(),
+    ),
     (route) => false,
+  );
+}
+
+// ============================================================
+// ABRIR MATERIAL
+// ============================================================
+
+void abrirMaterial(int materialId) {
+  final navigator =
+      navigatorKey.currentState;
+
+  if (navigator == null) {
+    debugPrint(
+      'Não foi possível navegar: '
+      'Navigator ainda não está disponível.',
+    );
+
+    return;
+  }
+
+  navigator.push(
+    MaterialPageRoute(
+      builder: (_) => EnsinoScreen(
+        materialIdInicial: materialId,
+      ),
+    ),
   );
 }

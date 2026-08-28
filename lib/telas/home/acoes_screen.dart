@@ -1,11 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/services/apiservice.dart';
 
-// ─── Model ────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// MODEL
+// ─────────────────────────────────────────────────────────────────────────────
+
 class Acao {
   final String codigo;
   final String nome;
@@ -21,16 +27,45 @@ class Acao {
     required this.volume,
   });
 
-  factory Acao.fromJson(Map<String, dynamic> j) => Acao(
-        codigo: j['stock'] ?? j['symbol'] ?? '',
-        nome: j['name'] ?? j['longName'] ?? '',
-        preco: (j['close'] ?? j['regularMarketPrice'] ?? 0).toDouble(),
-        variacao: (j['change'] ?? j['regularMarketChangePercent'] ?? 0).toDouble(),
-        volume: (j['volume'] ?? j['regularMarketVolume'] ?? 0).toDouble(),
-      );
+  factory Acao.fromJson(Map<String, dynamic> j) {
+    return Acao(
+      codigo: (j['stock'] ?? j['symbol'] ?? '').toString(),
+      nome: (j['name'] ??
+              j['shortName'] ??
+              j['longName'] ??
+              j['symbol'] ??
+              '')
+          .toString(),
+      preco: _toDouble(
+        j['close'] ?? j['regularMarketPrice'],
+      ),
+      variacao: _toDouble(
+        j['change'] ?? j['regularMarketChangePercent'],
+      ),
+      volume: _toDouble(
+        j['volume'] ?? j['regularMarketVolume'],
+      ),
+    );
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+          value.toString().replaceAll(',', '.'),
+        ) ??
+        0.0;
+  }
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SCREEN
+// ─────────────────────────────────────────────────────────────────────────────
+
 class AcoesScreen extends StatefulWidget {
   const AcoesScreen({super.key});
 
@@ -39,81 +74,357 @@ class AcoesScreen extends StatefulWidget {
 }
 
 class _AcoesScreenState extends State<AcoesScreen> {
-  final _token = dotenv.env['BRAPI_TOKEN'];
+  final String? _token = dotenv.env['BRAPI_TOKEN'];
 
-  List<Acao> _lista = [];
+  final TextEditingController _buscaCtrl = TextEditingController();
+
+  final ScrollController _scrollController = ScrollController();
+
+  Timer? _debounce;
+
+  // Lista acumulada de ações.
+  final List<Acao> _lista = [];
+
+  // Lista exibida depois dos filtros.
   List<Acao> _filtrada = [];
+
+  // Favoritos vindos do backend.
+  final Set<String> _favoritos = {};
+
   bool _loading = true;
+  bool _carregandoMais = false;
+
   String? _erro;
+
   String _busca = '';
   String _filtro = 'Todos';
 
-  // códigos já favoritados (pra estrela aparecer preenchida)
-  final Set<String> _favoritos = {};
+  // Paginação BRAPI.
+  int _paginaAtual = 1;
+  int _totalPaginas = 1;
 
-  final _buscaCtrl = TextEditingController();
+  bool _temProximaPagina = false;
+
+  // Evita requisições simultâneas.
+  bool _requisicaoEmAndamento = false;
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INIT
+  // ───────────────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
-    _carregar();
+
+    _buscaCtrl.addListener(_onBuscaAlterada);
+
+    _scrollController.addListener(_onScroll);
+
     _carregarFavoritos();
-    _buscaCtrl.addListener(() {
-      setState(() {
-        _busca = _buscaCtrl.text.trim().toUpperCase();
-        _aplicarFiltro();
-      });
-    });
+
+    _carregarPrimeiraPagina();
   }
 
-  @override
-  void dispose() {
-    _buscaCtrl.dispose();
-    super.dispose();
+  // ───────────────────────────────────────────────────────────────────────────
+  // BUSCA
+  // ───────────────────────────────────────────────────────────────────────────
+
+  void _onBuscaAlterada() {
+    final texto = _buscaCtrl.text.trim().toUpperCase();
+
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+    }
+
+    _debounce = Timer(
+      const Duration(milliseconds: 500),
+      () {
+        if (!mounted) return;
+
+        if (texto == _busca) return;
+
+        _busca = texto;
+
+        _carregarPrimeiraPagina();
+      },
+    );
+
+    setState(() {});
   }
 
-  Future<void> _carregar() async {
-    setState(() { _loading = true; _erro = null; });
-    try {
-      final url = Uri.parse(
-        'https://brapi.dev/api/quote/list?limit=40&sortBy=volume&sortOrder=desc&token=$_token',
-      );
-      final resp = await http.get(url).timeout(const Duration(seconds: 12));
-      if (resp.statusCode != 200) throw Exception('Erro ${resp.statusCode}');
+  // ───────────────────────────────────────────────────────────────────────────
+  // SCROLL / PAGINAÇÃO
+  // ───────────────────────────────────────────────────────────────────────────
 
-      final json = jsonDecode(resp.body) as Map<String, dynamic>;
-      final stocks = (json['stocks'] as List? ?? [])
-          .map((e) => Acao.fromJson(e as Map<String, dynamic>))
-          .toList();
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
 
-      setState(() {
-        _lista = stocks;
-        _aplicarFiltro();
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() { _erro = e.toString(); _loading = false; });
+    final posicao = _scrollController.position;
+
+    // Começa a buscar a próxima página quando estiver
+    // próximo do final da lista.
+    if (posicao.pixels >= posicao.maxScrollExtent - 500) {
+      _carregarProximaPagina();
     }
   }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // CARREGAR PRIMEIRA PÁGINA
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Future<void> _carregarPrimeiraPagina() async {
+    if (_requisicaoEmAndamento) return;
+
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _erro = null;
+
+      _paginaAtual = 1;
+      _totalPaginas = 1;
+      _temProximaPagina = false;
+
+      _lista.clear();
+      _filtrada.clear();
+    });
+
+    await _buscarPagina(
+      pagina: 1,
+      substituir: true,
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // CARREGAR PRÓXIMA PÁGINA
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Future<void> _carregarProximaPagina() async {
+    if (_requisicaoEmAndamento) return;
+
+    if (!_temProximaPagina) return;
+
+    final proximaPagina = _paginaAtual + 1;
+
+    await _buscarPagina(
+      pagina: proximaPagina,
+      substituir: false,
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // BUSCAR PÁGINA NA BRAPI
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Future<void> _buscarPagina({
+    required int pagina,
+    required bool substituir,
+  }) async {
+    if (_requisicaoEmAndamento) return;
+
+    _requisicaoEmAndamento = true;
+
+    if (!substituir && mounted) {
+      setState(() {
+        _carregandoMais = true;
+      });
+    }
+
+    try {
+      final params = <String, String>{
+        'type': 'stock',
+
+        // 50 por página.
+        'limit': '50',
+
+        // Paginação.
+        'page': pagina.toString(),
+
+        // Mais negociadas primeiro.
+        'sortBy': 'volume',
+        'sortOrder': 'desc',
+      };
+
+      // Busca diretamente na BRAPI.
+      if (_busca.isNotEmpty) {
+        params['search'] = _busca;
+      }
+
+      // Token.
+      if (_token != null && _token!.trim().isNotEmpty) {
+        params['token'] = _token!.trim();
+      }
+
+      final uri = Uri.https(
+        'brapi.dev',
+        '/api/quote/list',
+        params,
+      );
+
+      debugPrint('============================================');
+      debugPrint('[BRAPI AÇÕES]');
+      debugPrint('Página: $pagina');
+      debugPrint('Busca: $_busca');
+      debugPrint('URL: $uri');
+
+      final response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint(
+        '[BRAPI AÇÕES] Status: ${response.statusCode}',
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'BRAPI retornou status ${response.statusCode}',
+        );
+      }
+
+      final data =
+          jsonDecode(response.body) as Map<String, dynamic>;
+
+      // ─────────────────────────────────────────────────────────
+      // ATIVOS
+      // ─────────────────────────────────────────────────────────
+
+      final stocks = (data['stocks'] as List? ?? [])
+          .whereType<Map>()
+          .map(
+            (item) => Acao.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .where(
+            (acao) => acao.codigo.isNotEmpty,
+          )
+          .toList();
+
+      // ─────────────────────────────────────────────────────────
+      // PAGINAÇÃO
+      // ─────────────────────────────────────────────────────────
+
+      final currentPage =
+          _toInt(data['currentPage']) ?? pagina;
+
+      final totalPages =
+          _toInt(data['totalPages']) ?? 1;
+
+      final hasNextPage =
+          data['hasNextPage'] == true ||
+          currentPage < totalPages;
+
+      if (!mounted) return;
+
+      setState(() {
+        if (substituir) {
+          _lista.clear();
+        }
+
+        // Evita duplicação de ações.
+        for (final acao in stocks) {
+          final existe = _lista.any(
+            (item) => item.codigo == acao.codigo,
+          );
+
+          if (!existe) {
+            _lista.add(acao);
+          }
+        }
+
+        _paginaAtual = currentPage;
+        _totalPaginas = totalPages;
+        _temProximaPagina = hasNextPage;
+
+        _aplicarFiltro();
+
+        _loading = false;
+        _carregandoMais = false;
+      });
+
+      debugPrint(
+        '[BRAPI AÇÕES] Recebidas: ${stocks.length}',
+      );
+
+      debugPrint(
+        '[BRAPI AÇÕES] Página: '
+        '$_paginaAtual/$_totalPaginas',
+      );
+
+      debugPrint(
+        '[BRAPI AÇÕES] Próxima página: '
+        '$_temProximaPagina',
+      );
+    } catch (e) {
+      debugPrint(
+        '[BRAPI AÇÕES] ERRO: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        if (substituir) {
+          _erro = e.toString();
+          _loading = false;
+        }
+
+        _carregandoMais = false;
+      });
+    } finally {
+      _requisicaoEmAndamento = false;
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // CONVERTER INT
+  // ───────────────────────────────────────────────────────────────────────────
+
+  int? _toInt(dynamic value) {
+    if (value == null) return null;
+
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(
+      value.toString(),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // FAVORITOS
+  // ───────────────────────────────────────────────────────────────────────────
 
   Future<void> _carregarFavoritos() async {
     try {
-      final favoritos = await ApiService.listarFavoritosAcoes();
+      final favoritos =
+          await ApiService.listarFavoritosAcoes();
+
       if (!mounted) return;
+
       setState(() {
         _favoritos
           ..clear()
-          ..addAll(favoritos.map((f) => (f['codigo'] ?? '').toString()));
+          ..addAll(
+            favoritos.map(
+              (f) => (f['codigo'] ?? '').toString(),
+            ),
+          );
       });
-    } catch (_) {
-      // se falhar, só não mostra estrela preenchida — não bloqueia a tela
+    } catch (e) {
+      debugPrint(
+        '[FAVORITOS] Erro ao carregar ações: $e',
+      );
     }
   }
 
-  Future<void> _toggleFavorito(String codigo) async {
-    final jaFavoritado = _favoritos.contains(codigo);
+  Future<void> _toggleFavorito(
+    String codigo,
+  ) async {
+    final jaFavoritado =
+        _favoritos.contains(codigo);
 
-    // atualização otimista — já reflete na UI antes da resposta da API
+    // Atualização otimista.
     setState(() {
       if (jaFavoritado) {
         _favoritos.remove(codigo);
@@ -124,13 +435,18 @@ class _AcoesScreenState extends State<AcoesScreen> {
 
     try {
       if (jaFavoritado) {
-        await ApiService.removerFavoritoAcao(codigo);
+        await ApiService.removerFavoritoAcao(
+          codigo,
+        );
       } else {
-        await ApiService.adicionarFavoritoAcao(codigo);
+        await ApiService.adicionarFavoritoAcao(
+          codigo,
+        );
       }
     } catch (e) {
-      // reverte se a API falhar
       if (!mounted) return;
+
+      // Reverte caso a API falhe.
       setState(() {
         if (jaFavoritado) {
           _favoritos.add(codigo);
@@ -138,118 +454,77 @@ class _AcoesScreenState extends State<AcoesScreen> {
           _favoritos.remove(codigo);
         }
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst(
+                  'Exception: ',
+                  '',
+                ),
+          ),
+        ),
       );
     }
   }
 
-  void _aplicarFiltro() {
-    var lista = _lista.where((a) {
-      if (_busca.isEmpty) return true;
-      return a.codigo.contains(_busca) ||
-          a.nome.toUpperCase().contains(_busca);
-    }).toList();
+  // ───────────────────────────────────────────────────────────────────────────
+  // FILTROS
+  // ───────────────────────────────────────────────────────────────────────────
 
-    if (_filtro == 'Alta') lista = lista.where((a) => a.variacao > 0).toList();
-    if (_filtro == 'Baixa') lista = lista.where((a) => a.variacao < 0).toList();
+  void _aplicarFiltro() {
+    var lista = List<Acao>.from(_lista);
+
+    if (_filtro == 'Alta') {
+      lista = lista
+          .where(
+            (a) => a.variacao > 0,
+          )
+          .toList();
+    }
+
+    if (_filtro == 'Baixa') {
+      lista = lista
+          .where(
+            (a) => a.variacao < 0,
+          )
+          .toList();
+    }
 
     _filtrada = lista;
   }
 
-  void _setFiltro(String f) {
-    setState(() { _filtro = f; _aplicarFiltro(); });
+  void _setFiltro(String filtro) {
+    setState(() {
+      _filtro = filtro;
+      _aplicarFiltro();
+    });
   }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // REFRESH
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Future<void> _refresh() async {
+    await _carregarPrimeiraPagina();
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // BUILD
+  // ───────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
+
       body: SafeArea(
         child: Column(
           children: [
-            // ── HEADER COM SETA DE VOLTAR ────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(10, 10, 20, 24),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: CoresGlobais.backgrounder),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      const Expanded(
-                        child: Text(
-                          'Ações',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: TextField(
-                        controller: _buscaCtrl,
-                        textCapitalization: TextCapitalization.characters,
-                        decoration: const InputDecoration(
-                          hintText: 'Buscar ação (ex: PETR4)',
-                          hintStyle: TextStyle(color: Colors.grey),
-                          border: InputBorder.none,
-                          icon: Icon(Icons.search_rounded, color: Color(0xFF6A5AE0)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(
-                      children: ['Todos', 'Alta', 'Baixa']
-                          .map((f) => _chipFiltro(f))
-                          .toList(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildHeader(),
 
-            // ── LISTA ─────────────────────────────────────────
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _erro != null
-                      ? _erroWidget()
-                      : _filtrada.isEmpty
-                          ? _vazioWidget()
-                          : RefreshIndicator(
-                              onRefresh: _carregar,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(15, 16, 15, 20),
-                                itemCount: _filtrada.length,
-                                itemBuilder: (_, i) => _acaoCard(_filtrada[i]),
-                              ),
-                            ),
+              child: _buildLista(),
             ),
           ],
         ),
@@ -257,23 +532,329 @@ class _AcoesScreenState extends State<AcoesScreen> {
     );
   }
 
-  Widget _chipFiltro(String label) {
-    final ativo = _filtro == label;
-    return GestureDetector(
-      onTap: () => _setFiltro(label),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: BoxDecoration(
-          color: ativo ? Colors.white : Colors.white24,
-          borderRadius: BorderRadius.circular(20),
+  // ───────────────────────────────────────────────────────────────────────────
+  // HEADER
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(
+        10,
+        10,
+        20,
+        24,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: CoresGlobais.backgrounder,
         ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white,
+                ),
+                onPressed: () =>
+                    Navigator.pop(context),
+              ),
+
+              const Expanded(
+                child: Text(
+                  'Ações',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 10,
+            ),
+
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 14,
+              ),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.circular(14),
+              ),
+
+              child: TextField(
+                controller: _buscaCtrl,
+
+                textCapitalization:
+                    TextCapitalization.characters,
+
+                decoration:
+                    InputDecoration(
+                  hintText:
+                      'Buscar ação (ex: PETR4)',
+
+                  hintStyle:
+                      const TextStyle(
+                    color: Colors.grey,
+                  ),
+
+                  border:
+                      InputBorder.none,
+
+                  icon:
+                      const Icon(
+                    Icons.search_rounded,
+                    color:
+                        Color(0xFF6A5AE0),
+                  ),
+
+                  suffixIcon:
+                      _buscaCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon:
+                                  const Icon(
+                                Icons
+                                    .close_rounded,
+                                color:
+                                    Colors.grey,
+                              ),
+                              onPressed: () {
+                                _buscaCtrl.clear();
+                              },
+                            )
+                          : null,
+                ),
+
+                onSubmitted: (_) {
+                  if (_debounce?.isActive ??
+                      false) {
+                    _debounce!.cancel();
+                  }
+
+                  _busca = _buscaCtrl.text
+                      .trim()
+                      .toUpperCase();
+
+                  _carregarPrimeiraPagina();
+                },
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 10,
+            ),
+
+            child: SingleChildScrollView(
+              scrollDirection:
+                  Axis.horizontal,
+
+              child: Row(
+                children: [
+                  'Todos',
+                  'Alta',
+                  'Baixa',
+                ]
+                    .map(_chipFiltro)
+                    .toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // LISTA
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Widget _buildLista() {
+    if (_loading) {
+      return const Center(
+        child:
+            CircularProgressIndicator(),
+      );
+    }
+
+    if (_erro != null &&
+        _lista.isEmpty) {
+      return _erroWidget();
+    }
+
+    if (_filtrada.isEmpty) {
+      return _vazioWidget();
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refresh,
+
+      child: ListView.builder(
+        controller:
+            _scrollController,
+
+        padding:
+            const EdgeInsets.fromLTRB(
+          15,
+          16,
+          15,
+          20,
+        ),
+
+        itemCount:
+            _filtrada.length +
+                (_carregandoMais ||
+                        _temProximaPagina
+                    ? 1
+                    : 0),
+
+        itemBuilder: (_, index) {
+          if (index >=
+              _filtrada.length) {
+            return _buildIndicadorPagina();
+          }
+
+          return _acaoCard(
+            _filtrada[index],
+          );
+        },
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INDICADOR DE PAGINAÇÃO
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Widget _buildIndicadorPagina() {
+    if (_carregandoMais) {
+      return const Padding(
+        padding:
+            EdgeInsets.symmetric(
+          vertical: 20,
+        ),
+        child: Center(
+          child:
+              CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_temProximaPagina) {
+      return Padding(
+        padding:
+            const EdgeInsets.symmetric(
+          vertical: 20,
+        ),
+        child: Center(
+          child: Text(
+            'Role para carregar mais ações...',
+            style: TextStyle(
+              color: Colors.grey[500],
+              fontSize: 12,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 20,
+      ),
+      child: Center(
+        child: Text(
+          'Todas as ações carregadas',
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // CHIP
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Widget _chipFiltro(
+    String label,
+  ) {
+    final ativo =
+        _filtro == label;
+
+    return GestureDetector(
+      onTap: () =>
+          _setFiltro(label),
+
+      child: AnimatedContainer(
+        duration:
+            const Duration(
+          milliseconds: 200,
+        ),
+
+        margin:
+            const EdgeInsets.only(
+          right: 8,
+        ),
+
+        padding:
+            const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 7,
+        ),
+
+        decoration: BoxDecoration(
+          color: ativo
+              ? Colors.white
+              : Colors.white24,
+
+          borderRadius:
+              BorderRadius.circular(20),
+        ),
+
         child: Text(
           label,
+
           style: TextStyle(
-            color: ativo ? const Color(0xFF6A5AE0) : Colors.white,
-            fontWeight: ativo ? FontWeight.bold : FontWeight.normal,
+            color: ativo
+                ? const Color(
+                    0xFF6A5AE0,
+                  )
+                : Colors.white,
+
+            fontWeight: ativo
+                ? FontWeight.bold
+                : FontWeight.normal,
+
             fontSize: 13,
           ),
         ),
@@ -281,92 +862,200 @@ class _AcoesScreenState extends State<AcoesScreen> {
     );
   }
 
-  Widget _acaoCard(Acao a) {
-    final pos = a.variacao >= 0;
-    final cor = pos ? const Color(0xFF1B8A5A) : const Color(0xFFCC2929);
-    final corFundo = pos ? const Color(0xFFE6F4ED) : const Color(0xFFFFEBEB);
-    final favoritado = _favoritos.contains(a.codigo);
+  // ───────────────────────────────────────────────────────────────────────────
+  // CARD
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Widget _acaoCard(
+    Acao a,
+  ) {
+    final pos =
+        a.variacao >= 0;
+
+    final cor = pos
+        ? const Color(0xFF1B8A5A)
+        : const Color(0xFFCC2929);
+
+    final corFundo = pos
+        ? const Color(0xFFE6F4ED)
+        : const Color(0xFFFFEBEB);
+
+    final favoritado =
+        _favoritos.contains(
+      a.codigo,
+    );
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin:
+          const EdgeInsets.only(
+        bottom: 10,
+      ),
+
+      padding:
+          const EdgeInsets.all(14),
+
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+
+        borderRadius:
+            BorderRadius.circular(16),
+
         boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 5,
+            offset:
+                Offset(0, 2),
+          ),
         ],
       ),
+
       child: Row(
         children: [
           Container(
             width: 46,
             height: 46,
-            decoration: BoxDecoration(
-              color: const Color(0xFF6A5AE0).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(13),
+
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(
+                0xFF6A5AE0,
+              ).withOpacity(0.1),
+
+              borderRadius:
+                  BorderRadius.circular(
+                13,
+              ),
             ),
+
             child: Center(
               child: Text(
-                a.codigo.length >= 2 ? a.codigo.substring(0, 2) : a.codigo,
-                style: const TextStyle(
-                  color: Color(0xFF6A5AE0),
-                  fontWeight: FontWeight.bold,
+                a.codigo.length >= 2
+                    ? a.codigo.substring(
+                        0,
+                        2,
+                      )
+                    : a.codigo,
+
+                style:
+                    const TextStyle(
+                  color:
+                      Color(0xFF6A5AE0),
+                  fontWeight:
+                      FontWeight.bold,
                   fontSize: 13,
                 ),
               ),
             ),
           ),
+
           const SizedBox(width: 12),
+
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
               children: [
-                Text(a.codigo,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(
+                  a.codigo,
+
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+
                 if (a.nome.isNotEmpty)
                   Text(
                     a.nome,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.grey[500],
+                      fontSize: 12,
+                    ),
+
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+
+                    overflow:
+                        TextOverflow.ellipsis,
                   ),
               ],
             ),
           ),
+
           Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment:
+                CrossAxisAlignment.end,
+
             children: [
               Text(
                 'R\$ ${a.preco.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+
+                style:
+                    const TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
+
               const SizedBox(height: 4),
+
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: corFundo,
-                  borderRadius: BorderRadius.circular(8),
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 8,
+                  vertical: 3,
                 ),
+
+                decoration:
+                    BoxDecoration(
+                  color: corFundo,
+
+                  borderRadius:
+                      BorderRadius.circular(
+                    8,
+                  ),
+                ),
+
                 child: Text(
                   '${pos ? '+' : ''}${a.variacao.toStringAsFixed(2)}%',
+
                   style: TextStyle(
                     color: cor,
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight:
+                        FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
+
           const SizedBox(width: 8),
+
           GestureDetector(
-            onTap: () => _toggleFavorito(a.codigo),
+            onTap: () =>
+                _toggleFavorito(
+              a.codigo,
+            ),
+
             child: Icon(
-              favoritado ? Icons.star_rounded : Icons.star_outline_rounded,
-              color: favoritado ? Colors.amber : Colors.grey[400],
+              favoritado
+                  ? Icons.star_rounded
+                  : Icons.star_outline_rounded,
+
+              color: favoritado
+                  ? Colors.amber
+                  : Colors.grey[400],
+
               size: 24,
             ),
           ),
@@ -375,29 +1064,99 @@ class _AcoesScreenState extends State<AcoesScreen> {
     );
   }
 
-  Widget _erroWidget() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, color: Colors.grey[400], size: 40),
-            const SizedBox(height: 8),
-            Text('Erro ao carregar',
-                style: TextStyle(color: Colors.grey[500])),
-            TextButton(
-                onPressed: _carregar, child: const Text('Tentar novamente')),
-          ],
-        ),
-      );
+  // ───────────────────────────────────────────────────────────────────────────
+  // ERRO
+  // ───────────────────────────────────────────────────────────────────────────
 
-  Widget _vazioWidget() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off_rounded, size: 56, color: Colors.grey[300]),
-            const SizedBox(height: 12),
-            Text('Nenhuma ação encontrada',
-                style: TextStyle(color: Colors.grey[400], fontSize: 15)),
-          ],
-        ),
-      );
+  Widget _erroWidget() {
+    return Center(
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+
+        children: [
+          Icon(
+            Icons.error_outline,
+            color:
+                Colors.grey[400],
+            size: 40,
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'Erro ao carregar ações',
+            style: TextStyle(
+              color:
+                  Colors.grey[500],
+            ),
+          ),
+
+          TextButton(
+            onPressed:
+                _carregarPrimeiraPagina,
+
+            child: const Text(
+              'Tentar novamente',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // VAZIO
+  // ───────────────────────────────────────────────────────────────────────────
+
+  Widget _vazioWidget() {
+    return Center(
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 56,
+            color:
+                Colors.grey[300],
+          ),
+
+          const SizedBox(height: 12),
+
+          Text(
+            _busca.isEmpty
+                ? 'Nenhuma ação encontrada'
+                : 'Nenhuma ação encontrada para "$_busca"',
+
+            style: TextStyle(
+              color:
+                  Colors.grey[400],
+              fontSize: 15,
+            ),
+
+            textAlign:
+                TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // DISPOSE
+  // ───────────────────────────────────────────────────────────────────────────
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+
+    _buscaCtrl.dispose();
+
+    _scrollController.dispose();
+
+    super.dispose();
+  }
 }
+

@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/componentes/videocard.dart';
 import 'package:meu_apli/telas/perfilusuario.dart';
-import 'package:meu_apli/telas/home/gerenciar_videos.dart';
 import 'package:meu_apli/telas/home/centro_ensino_page.dart';
 import 'package:meu_apli/services/apiservice.dart';
 
@@ -35,7 +34,14 @@ class ConteudoLeitura {
 // ============================================================
 
 class EnsinoScreen extends StatefulWidget {
-  const EnsinoScreen({super.key});
+  final int? materialIdInicial;
+  final String? urlMaterialInicial;
+
+  const EnsinoScreen({
+    super.key,
+    this.materialIdInicial,
+    this.urlMaterialInicial,
+  });
 
   @override
   State<EnsinoScreen> createState() => _EnsinoScreenState();
@@ -44,6 +50,12 @@ class EnsinoScreen extends StatefulWidget {
 class _EnsinoScreenState extends State<EnsinoScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
+
+  // ==========================================================
+  // AVATAR
+  // ==========================================================
+
+  String _avatar = 'avatar_1';
 
   // ==========================================================
   // ADMIN
@@ -57,9 +69,7 @@ class _EnsinoScreenState extends State<EnsinoScreen>
   // ==========================================================
 
   List<dynamic> _videos = [];
-
   bool _carregandoVideos = true;
-
   String? _erroVideos;
 
   // ==========================================================
@@ -67,10 +77,14 @@ class _EnsinoScreenState extends State<EnsinoScreen>
   // ==========================================================
 
   List<ConteudoLeitura> _materiais = [];
-
   bool _carregandoMateriais = true;
-
   String? _erroMateriais;
+
+  // ==========================================================
+  // CONTROLE PARA NÃO ABRIR DUAS VEZES
+  // ==========================================================
+
+  bool _materialInicialProcessado = false;
 
   // ==========================================================
   // INIT
@@ -88,6 +102,25 @@ class _EnsinoScreenState extends State<EnsinoScreen>
     _verificarAdmin();
     _carregarVideos();
     _carregarMateriais();
+    _carregarAvatar();
+  }
+
+  // ==========================================================
+  // CARREGAR AVATAR
+  // ==========================================================
+
+  Future<void> _carregarAvatar() async {
+    try {
+      final data = await ApiService.buscarPerfil();
+
+      if (!mounted) return;
+
+      setState(() {
+        _avatar = data['avatar'] ?? 'avatar_1';
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar avatar: $e');
+    }
   }
 
   // ==========================================================
@@ -112,9 +145,7 @@ class _EnsinoScreenState extends State<EnsinoScreen>
         _carregandoAdmin = false;
       });
 
-      debugPrint(
-        'Erro ao verificar administrador: $e',
-      );
+      debugPrint('Erro ao verificar administrador: $e');
     }
   }
 
@@ -147,9 +178,7 @@ class _EnsinoScreenState extends State<EnsinoScreen>
         _erroVideos = e.toString();
       });
 
-      debugPrint(
-        'Erro ao carregar vídeos: $e',
-      );
+      debugPrint('Erro ao carregar vídeos: $e');
     }
   }
 
@@ -174,30 +203,23 @@ class _EnsinoScreenState extends State<EnsinoScreen>
       debugPrint('====================================');
 
       final materiais = resultado.map<ConteudoLeitura>((item) {
-        // O backend retorna "url", não "arquivo".
         String url = '';
 
         if (item['url'] != null) {
           url = item['url'].toString();
         }
 
-        // Se a API retornar uma URL relativa,
-        // adicionamos o endereço do backend.
         if (url.startsWith('/')) {
           url = '${ApiService.baseUrl}$url';
         }
 
-        debugPrint(
-          'Material: ${item['titulo']}',
-        );
-
-        debugPrint(
-          'URL original: ${item['url']}',
-        );
-
-        debugPrint(
-          'URL final: $url',
-        );
+        debugPrint('====================================');
+        debugPrint('MATERIAL CARREGADO');
+        debugPrint('ID: ${item['id']}');
+        debugPrint('TÍTULO: ${item['titulo']}');
+        debugPrint('URL ORIGINAL: ${item['url']}');
+        debugPrint('URL FINAL: $url');
+        debugPrint('====================================');
 
         return ConteudoLeitura(
           id: item['id'] ?? 0,
@@ -215,6 +237,8 @@ class _EnsinoScreenState extends State<EnsinoScreen>
         _materiais = materiais;
         _carregandoMateriais = false;
       });
+
+      await _abrirMaterialInicial();
     } catch (e) {
       if (!mounted) return;
 
@@ -223,10 +247,84 @@ class _EnsinoScreenState extends State<EnsinoScreen>
         _erroMateriais = e.toString();
       });
 
-      debugPrint(
-        'Erro ao carregar materiais: $e',
-      );
+      debugPrint('Erro ao carregar materiais: $e');
     }
+  }
+
+  // ==========================================================
+  // ABRIR MATERIAL INICIAL
+  // ==========================================================
+
+  Future<void> _abrirMaterialInicial() async {
+    if (widget.materialIdInicial == null) {
+      return;
+    }
+
+    if (_materialInicialProcessado) {
+      return;
+    }
+
+    _materialInicialProcessado = true;
+
+    final materialId = widget.materialIdInicial!;
+
+    debugPrint('====================================');
+    debugPrint('ABRINDO MATERIAL RECEBIDO PELA NOTIFICAÇÃO');
+    debugPrint('ID: $materialId');
+    debugPrint('====================================');
+
+    ConteudoLeitura? material;
+
+    try {
+      material = _materiais.firstWhere(
+        (item) => item.id == materialId,
+      );
+    } catch (_) {
+      material = null;
+    }
+
+    if (material != null) {
+      await Future.delayed(
+        const Duration(milliseconds: 300),
+      );
+
+      if (!mounted) return;
+
+      await _abrirMaterial(material);
+      return;
+    }
+
+    final url = widget.urlMaterialInicial;
+
+    if (url != null && url.trim().isNotEmpty) {
+      String urlFinal = url.trim();
+
+      if (urlFinal.startsWith('/')) {
+        urlFinal = '${ApiService.baseUrl}$urlFinal';
+      }
+
+      final materialTemporario = ConteudoLeitura(
+        id: materialId,
+        titulo: 'Material',
+        descricao: '',
+        tipo: 'PDF',
+        arquivo: urlFinal,
+        tema: '',
+      );
+
+      await Future.delayed(
+        const Duration(milliseconds: 300),
+      );
+
+      if (!mounted) return;
+
+      await _abrirMaterial(materialTemporario);
+      return;
+    }
+
+    debugPrint(
+      'Não foi possível encontrar o material.',
+    );
   }
 
   // ==========================================================
@@ -241,14 +339,11 @@ class _EnsinoScreenState extends State<EnsinoScreen>
     debugPrint('====================================');
     debugPrint('ABRINDO MATERIAL');
     debugPrint('Título: ${material.titulo}');
+    debugPrint('ID: ${material.id}');
     debugPrint('URL: $urlString');
     debugPrint('====================================');
 
     if (urlString.isEmpty) {
-      debugPrint(
-        'ERRO: URL do material está vazia.',
-      );
-
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -265,36 +360,9 @@ class _EnsinoScreenState extends State<EnsinoScreen>
     try {
       final url = Uri.parse(urlString);
 
-      debugPrint(
-        'URI criada: $url',
-      );
-
       final podeAbrir = await canLaunchUrl(url);
 
-      debugPrint(
-        'Pode abrir URL: $podeAbrir',
-      );
-
-      if (podeAbrir) {
-        final abriu = await launchUrl(
-          url,
-          mode: LaunchMode.externalApplication,
-        );
-
-        debugPrint(
-          'Resultado do launchUrl: $abriu',
-        );
-
-        if (!abriu && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Não foi possível abrir o arquivo.',
-              ),
-            ),
-          );
-        }
-      } else {
+      if (!podeAbrir) {
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -304,11 +372,26 @@ class _EnsinoScreenState extends State<EnsinoScreen>
             ),
           ),
         );
+
+        return;
+      }
+
+      final abriu = await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!abriu && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível abrir o arquivo.',
+            ),
+          ),
+        );
       }
     } catch (e) {
-      debugPrint(
-        'Erro ao abrir material: $e',
-      );
+      debugPrint('Erro ao abrir material: $e');
 
       if (!mounted) return;
 
@@ -329,7 +412,6 @@ class _EnsinoScreenState extends State<EnsinoScreen>
   @override
   void dispose() {
     _tab.dispose();
-
     super.dispose();
   }
 
@@ -344,10 +426,6 @@ class _EnsinoScreenState extends State<EnsinoScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // ==================================================
-            // HEADER
-            // ==================================================
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(
@@ -368,10 +446,6 @@ class _EnsinoScreenState extends State<EnsinoScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ==========================================
-                  // TÍTULO + BOTÕES
-                  // ==========================================
-
                   Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
@@ -393,20 +467,15 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                           ),
                         ],
                       ),
-
-                      // ======================================
-                      // BOTÕES
-                      // ======================================
-
                       Row(
                         children: [
-                          // ADMIN
                           if (!_carregandoAdmin && _isAdmin)
                             IconButton(
                               tooltip:
                                   'Gerenciar conteúdo',
                               icon: const Icon(
-                                Icons.admin_panel_settings_rounded,
+                                Icons
+                                    .admin_panel_settings_rounded,
                                 color: Colors.white,
                               ),
                               onPressed: () async {
@@ -423,26 +492,27 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                               },
                             ),
 
-                          // PERFIL
+                          // PERFIL COM AVATAR
                           InkWell(
-                            onTap: () {
-                              Navigator.push(
+                            onTap: () async {
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      PerfilScreen(),
+                                      const PerfilScreen(),
                                 ),
                               );
+
+                              _carregarAvatar();
                             },
                             borderRadius:
                                 BorderRadius.circular(20),
-                            child: const CircleAvatar(
+                            child: CircleAvatar(
                               radius: 20,
                               backgroundColor:
                                   Colors.white24,
-                              child: Icon(
-                                Icons.person_rounded,
-                                color: Colors.white,
+                              backgroundImage: AssetImage(
+                                avatarAssetPath(_avatar),
                               ),
                             ),
                           ),
@@ -453,17 +523,14 @@ class _EnsinoScreenState extends State<EnsinoScreen>
 
                   const SizedBox(height: 16),
 
-                  // ==========================================
-                  // ABAS
-                  // ==========================================
-
                   TabBar(
                     controller: _tab,
                     isScrollable: true,
                     indicatorColor: Colors.white,
                     indicatorWeight: 3,
                     labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white60,
+                    unselectedLabelColor:
+                        Colors.white60,
                     labelStyle: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -471,21 +538,13 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                     tabAlignment:
                         TabAlignment.start,
                     tabs: const [
-                      Tab(
-                        text: 'Vídeos',
-                      ),
-                      Tab(
-                        text: 'Leitura',
-                      ),
+                      Tab(text: 'Vídeos'),
+                      Tab(text: 'Leitura'),
                     ],
                   ),
                 ],
               ),
             ),
-
-            // ==================================================
-            // CONTEÚDO
-            // ==================================================
 
             Expanded(
               child: TabBarView(
@@ -573,14 +632,12 @@ class _EnsinoScreenState extends State<EnsinoScreen>
           final titulo =
               video['titulo'] ?? 'Sem título';
 
-          final url =
-              video['url'] ?? '';
+          final url = video['url'] ?? '';
 
           final duracao =
               video['duracao']?.toString() ?? '';
 
-          final videoId =
-              _extrairVideoId(url);
+          final videoId = _extrairVideoId(url);
 
           if (videoId == null) {
             return _videoInvalido(
@@ -603,9 +660,7 @@ class _EnsinoScreenState extends State<EnsinoScreen>
   // EXTRAIR ID DO YOUTUBE
   // ==========================================================
 
-  String? _extrairVideoId(
-    String url,
-  ) {
+  String? _extrairVideoId(String url) {
     try {
       final uri = Uri.parse(url);
 
@@ -635,8 +690,7 @@ class _EnsinoScreenState extends State<EnsinoScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(15),
       ),
       child: Column(
         crossAxisAlignment:
@@ -699,8 +753,7 @@ class _EnsinoScreenState extends State<EnsinoScreen>
               ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed:
-                    _carregarMateriais,
+                onPressed: _carregarMateriais,
                 child: const Text(
                   'Tentar novamente',
                 ),
@@ -713,8 +766,7 @@ class _EnsinoScreenState extends State<EnsinoScreen>
 
     if (_materiais.isEmpty) {
       return RefreshIndicator(
-        onRefresh:
-            _carregarMateriais,
+        onRefresh: _carregarMateriais,
         child: ListView(
           children: const [
             SizedBox(height: 150),
@@ -729,24 +781,16 @@ class _EnsinoScreenState extends State<EnsinoScreen>
     }
 
     return RefreshIndicator(
-      onRefresh:
-          _carregarMateriais,
+      onRefresh: _carregarMateriais,
       child: ListView.separated(
-        padding:
-            const EdgeInsets.all(15),
-        itemCount:
-            _materiais.length,
-        separatorBuilder:
-            (_, __) =>
-                const SizedBox(height: 10),
-        itemBuilder:
-            (context, index) {
-          final material =
-              _materiais[index];
+        padding: const EdgeInsets.all(15),
+        itemCount: _materiais.length,
+        separatorBuilder: (_, __) =>
+            const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final material = _materiais[index];
 
-          return _materialCard(
-            material,
-          );
+          return _materialCard(material);
         },
       ),
     );
@@ -762,43 +806,34 @@ class _EnsinoScreenState extends State<EnsinoScreen>
     IconData icone;
     Color cor;
 
-    switch (
-        material.tipo.toLowerCase()) {
+    switch (material.tipo.toLowerCase()) {
       case 'pdf':
-        icone =
-            Icons.picture_as_pdf_rounded;
+        icone = Icons.picture_as_pdf_rounded;
         cor = Colors.red;
         break;
 
       case 'epub':
-        icone =
-            Icons.menu_book_rounded;
+        icone = Icons.menu_book_rounded;
         cor = Colors.deepPurple;
         break;
 
       case 'mobi':
-        icone =
-            Icons.book_rounded;
+        icone = Icons.book_rounded;
         cor = Colors.orange;
         break;
 
       default:
-        icone =
-            Icons.description_rounded;
+        icone = Icons.description_rounded;
         cor = Colors.blue;
     }
 
     return GestureDetector(
-      onTap: () =>
-          _abrirMaterial(material),
+      onTap: () => _abrirMaterial(material),
       child: Container(
-        padding:
-            const EdgeInsets.all(16),
-        decoration:
-            BoxDecoration(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius:
-              BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: const [
             BoxShadow(
               color: Colors.black12,
@@ -809,17 +844,11 @@ class _EnsinoScreenState extends State<EnsinoScreen>
         ),
         child: Row(
           children: [
-            // ==============================================
-            // ÍCONE
-            // ==============================================
-
             Container(
               width: 50,
               height: 50,
-              decoration:
-                  BoxDecoration(
-                color:
-                    cor.withOpacity(0.12),
+              decoration: BoxDecoration(
+                color: cor.withOpacity(0.12),
                 borderRadius:
                     BorderRadius.circular(14),
               ),
@@ -832,10 +861,6 @@ class _EnsinoScreenState extends State<EnsinoScreen>
 
             const SizedBox(width: 14),
 
-            // ==============================================
-            // TEXTOS
-            // ==============================================
-
             Expanded(
               child: Column(
                 crossAxisAlignment:
@@ -843,10 +868,8 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                 children: [
                   Text(
                     material.titulo,
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
                     maxLines: 2,
@@ -854,14 +877,12 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                         TextOverflow.ellipsis,
                   ),
 
-                  if (material
-                      .descricao.isNotEmpty) ...[
+                  if (material.descricao.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       material.descricao,
                       style: TextStyle(
-                        color:
-                            Colors.grey[500],
+                        color: Colors.grey[500],
                         fontSize: 12,
                       ),
                       maxLines: 2,
@@ -876,25 +897,19 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                     children: [
                       Container(
                         padding:
-                            const EdgeInsets
-                                .symmetric(
+                            const EdgeInsets.symmetric(
                           horizontal: 7,
                           vertical: 3,
                         ),
-                        decoration:
-                            BoxDecoration(
+                        decoration: BoxDecoration(
                           color:
-                              cor.withOpacity(
-                                  0.10),
+                              cor.withOpacity(0.10),
                           borderRadius:
-                              BorderRadius
-                                  .circular(6),
+                              BorderRadius.circular(6),
                         ),
                         child: Text(
-                          material.tipo
-                              .toUpperCase(),
-                          style:
-                              TextStyle(
+                          material.tipo.toUpperCase(),
+                          style: TextStyle(
                             color: cor,
                             fontSize: 10,
                             fontWeight:
@@ -903,23 +918,17 @@ class _EnsinoScreenState extends State<EnsinoScreen>
                         ),
                       ),
 
-                      if (material
-                          .tema.isNotEmpty) ...[
-                        const SizedBox(
-                          width: 8,
-                        ),
+                      if (material.tema.isNotEmpty) ...[
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             material.tema,
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.grey[400],
+                            style: TextStyle(
+                              color: Colors.grey[400],
                               fontSize: 10,
                             ),
                             overflow:
-                                TextOverflow
-                                    .ellipsis,
+                                TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -942,4 +951,3 @@ class _EnsinoScreenState extends State<EnsinoScreen>
     );
   }
 }
-
