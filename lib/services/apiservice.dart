@@ -3,16 +3,44 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:meu_apli/services/navigation_service.dart';
 
 class ApiService {
   static const String baseUrl =
-      "https://lanuginose-unsyllogistically-dianna.ngrok-free.dev";
+      'https://lanuginose-unsyllogistically-dianna.ngrok-free.dev';
 
   // ============================================================
-  // SESSÃO (TOKENS)
+  // FIREBASE AUTH
+  // ============================================================
+
+  static final FirebaseAuth _firebaseAuth =
+      FirebaseAuth.instance;
+
+  // ============================================================
+  // DOMÍNIOS PERMITIDOS
+  // ============================================================
+
+  static const List<String> dominiosIfmaPermitidos = [
+    '@ifma.edu.br',
+    '@acad.ifma.edu.br',
+  ];
+
+  // ============================================================
+  // VALIDAR E-MAIL INSTITUCIONAL
+  // ============================================================
+
+  static bool emailInstitucionalValido(String email) {
+    final emailNormalizado = email.trim().toLowerCase();
+
+    return dominiosIfmaPermitidos.any(
+      (dominio) => emailNormalizado.endsWith(dominio),
+    );
+  }
+
+  // ============================================================
+  // SESSÃO
   // ============================================================
 
   static Future<String?> getToken() async {
@@ -244,8 +272,7 @@ class ApiService {
     if (response.statusCode == 401 &&
         auth &&
         !tentandoNovamente) {
-      final renovou =
-          await tentarRenovarToken();
+      final renovou = await tentarRenovarToken();
 
       if (renovou) {
         return _enviarRequisicao(
@@ -266,27 +293,527 @@ class ApiService {
   }
 
   // ============================================================
+  // FIREBASE - CRIAR CONTA
+  // ============================================================
+
+  static Future<String> criarUsuarioFirebase(
+    String email,
+    String senha,
+  ) async {
+    try {
+      final credential =
+          await _firebaseAuth.createUserWithEmailAndPassword(
+        email: email.trim().toLowerCase(),
+        password: senha,
+      );
+
+      final user = credential.user;
+
+      if (user == null) {
+        throw Exception(
+          'Não foi possível criar o usuário no Firebase.',
+        );
+      }
+
+      return user.uid;
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'email-already-in-use':
+          throw Exception(
+            'Este e-mail já está cadastrado.',
+          );
+
+        case 'invalid-email':
+          throw Exception(
+            'O e-mail informado é inválido.',
+          );
+
+        case 'weak-password':
+          throw Exception(
+            'A senha é muito fraca.',
+          );
+
+        case 'operation-not-allowed':
+          throw Exception(
+            'Cadastro por e-mail e senha não está '
+            'habilitado no Firebase.',
+          );
+
+        default:
+          throw Exception(
+            'Erro ao criar conta no Firebase: ${e.message}',
+          );
+      }
+    }
+  }
+
+  // ============================================================
+  // FIREBASE - ENVIAR VERIFICAÇÃO
+  // ============================================================
+
+  static Future<void> enviarEmailVerificacao() async {
+    final user = _firebaseAuth.currentUser;
+
+    if (user == null) {
+      throw Exception(
+        'Nenhum usuário do Firebase está conectado.',
+      );
+    }
+
+    await user.sendEmailVerification();
+  }
+
+  // ============================================================
+  // FIREBASE - VERIFICAR E-MAIL
+  // ============================================================
+
+  static Future<bool> verificarEmailFirebase() async {
+    final user = _firebaseAuth.currentUser;
+
+    if (user == null) {
+      return false;
+    }
+
+    await user.reload();
+
+    final usuarioAtualizado =
+        _firebaseAuth.currentUser;
+
+    return usuarioAtualizado?.emailVerified ?? false;
+  }
+
+  // ============================================================
+  // FIREBASE - RECARREGAR
+  // ============================================================
+
+  static Future<void> recarregarUsuarioFirebase() async {
+    final user = _firebaseAuth.currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    await user.reload();
+  }
+
+  // ============================================================
+  // FIREBASE - UID
+  // ============================================================
+
+  static String? getFirebaseUid() {
+    return _firebaseAuth.currentUser?.uid;
+  }
+
+  // ============================================================
+  // FIREBASE - LOGOUT
+  // ============================================================
+
+  static Future<void> logoutFirebase() async {
+    await _firebaseAuth.signOut();
+  }
+
+  // ============================================================
+  // AUTH - CRIAR CONTA
+  // ============================================================
+
+  static Future<void> criarConta(
+    String nome,
+    String email,
+    String senha,
+  ) async {
+    User? firebaseUser;
+
+    try {
+      final emailNormalizado =
+          email.trim().toLowerCase();
+
+      // ========================================================
+      // VALIDAR DOMÍNIO
+      // ========================================================
+
+      if (!emailInstitucionalValido(emailNormalizado)) {
+        throw Exception(
+          'Use um e-mail institucional. '
+          'Permitidos: @ifma.edu.br ou @acad.ifma.edu.br',
+        );
+      }
+
+      // ========================================================
+      // CRIAR NO FIREBASE
+      // ========================================================
+
+      final credential =
+          await _firebaseAuth.createUserWithEmailAndPassword(
+        email: emailNormalizado,
+        password: senha,
+      );
+
+      firebaseUser = credential.user;
+
+      if (firebaseUser == null) {
+        throw Exception(
+          'Não foi possível criar a conta no Firebase.',
+        );
+      }
+
+      final firebaseUid = firebaseUser.uid;
+
+      print('====================================');
+      print('USUÁRIO FIREBASE CRIADO');
+      print('UID: $firebaseUid');
+      print('EMAIL: $emailNormalizado');
+      print('====================================');
+
+      // ========================================================
+      // ENVIAR VERIFICAÇÃO
+      // ========================================================
+
+      await firebaseUser.sendEmailVerification();
+
+      print('====================================');
+      print('E-MAIL DE VERIFICAÇÃO ENVIADO');
+      print('PARA: $emailNormalizado');
+      print('====================================');
+
+      // ========================================================
+      // CADASTRAR NO FASTAPI
+      // ========================================================
+
+      final url =
+          Uri.parse('$baseUrl/auth/criar_conta');
+
+      final response = await _enviarRequisicao(
+        'POST',
+        url,
+        body: {
+          'nome': nome.trim(),
+          'email_institucional': emailNormalizado,
+          'firebase_uid': firebaseUid,
+        },
+      );
+
+      // ========================================================
+      // ERRO FASTAPI
+      // ========================================================
+
+      if (response.statusCode != 200 &&
+          response.statusCode != 201) {
+        try {
+          final data = jsonDecode(response.body);
+
+          throw Exception(
+            data['detail'] ??
+                'Erro ao criar conta no servidor.',
+          );
+        } catch (e) {
+          if (e is Exception) {
+            rethrow;
+          }
+
+          throw Exception(
+            'Erro ao criar conta: '
+            '${response.statusCode}',
+          );
+        }
+      }
+
+      print('====================================');
+      print('CADASTRO CONCLUÍDO');
+      print('FIREBASE UID: $firebaseUid');
+      print('FASTAPI: OK');
+      print('VERIFICAÇÃO: E-MAIL ENVIADO');
+      print('====================================');
+
+      // ========================================================
+      // NÃO DEIXAR LOGADO
+      // ========================================================
+
+      await _firebaseAuth.signOut();
+    } on FirebaseAuthException catch (e) {
+      print(
+        'ERRO FIREBASE CADASTRO: '
+        '${e.code} - ${e.message}',
+      );
+
+      switch (e.code) {
+        case 'email-already-in-use':
+          throw Exception(
+            'Este e-mail já possui uma conta.',
+          );
+
+        case 'invalid-email':
+          throw Exception(
+            'O e-mail informado é inválido.',
+          );
+
+        case 'weak-password':
+          throw Exception(
+            'A senha deve possuir pelo menos 6 caracteres.',
+          );
+
+        case 'operation-not-allowed':
+          throw Exception(
+            'O cadastro por e-mail e senha não está '
+            'habilitado no Firebase.',
+          );
+
+        default:
+          throw Exception(
+            'Erro ao criar conta: ${e.message}',
+          );
+      }
+    } catch (e) {
+      print('ERRO NO CADASTRO: $e');
+
+      // ========================================================
+      // APAGAR FIREBASE SE FASTAPI FALHAR
+      // ========================================================
+
+      try {
+        if (firebaseUser != null) {
+          await firebaseUser.delete();
+
+          print(
+            'Usuário Firebase removido após falha no cadastro.',
+          );
+        }
+      } catch (erroDelete) {
+        print(
+          'Não foi possível remover usuário Firebase: '
+          '$erroDelete',
+        );
+      }
+
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // AUTH - REENVIAR VERIFICAÇÃO
+  // ============================================================
+
+  static Future<void> reenviarEmailVerificacao(
+    String email,
+    String senha,
+  ) async {
+    try {
+      final emailNormalizado =
+          email.trim().toLowerCase();
+
+      if (!emailInstitucionalValido(emailNormalizado)) {
+        throw Exception(
+          'Use um e-mail institucional.',
+        );
+      }
+
+      final credential =
+          await _firebaseAuth.signInWithEmailAndPassword(
+        email: emailNormalizado,
+        password: senha,
+      );
+
+      final user = credential.user;
+
+      if (user == null) {
+        throw Exception(
+          'Usuário não encontrado.',
+        );
+      }
+
+      await user.sendEmailVerification();
+
+      await _firebaseAuth.signOut();
+
+      print(
+        'E-mail de verificação reenviado.',
+      );
+    } on FirebaseAuthException catch (e) {
+      print(
+        'ERRO AO REENVIAR VERIFICAÇÃO: '
+        '${e.code} - ${e.message}',
+      );
+
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception(
+            'Usuário não encontrado.',
+          );
+
+        case 'wrong-password':
+        case 'invalid-credential':
+          throw Exception(
+            'E-mail ou senha incorretos.',
+          );
+
+        case 'invalid-email':
+          throw Exception(
+            'E-mail inválido.',
+          );
+
+        default:
+          throw Exception(
+            'Erro ao reenviar e-mail: ${e.message}',
+          );
+      }
+    }
+  }
+
+  // ============================================================
   // AUTH - LOGIN
+  //
+  // 1. Firebase autentica e-mail/senha
+  // 2. Firebase fornece ID Token
+  // 3. ID Token é enviado ao FastAPI
+  // 4. FastAPI valida o token
+  // 5. FastAPI devolve seus JWTs
   // ============================================================
 
   static Future<String> login(
     String email,
     String senha,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/auth/login');
+    try {
+      final emailNormalizado =
+          email.trim().toLowerCase();
 
-    final response = await _enviarRequisicao(
-      'POST',
-      url,
-      body: {
-        'email_institucional': email,
-        'senha': senha,
-      },
-    );
+      // ========================================================
+      // VALIDAR DOMÍNIO
+      // ========================================================
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      if (!emailInstitucionalValido(emailNormalizado)) {
+        throw Exception(
+          'Use um e-mail institucional.',
+        );
+      }
+
+      // ========================================================
+      // LOGIN FIREBASE
+      // ========================================================
+
+      final credential =
+          await _firebaseAuth.signInWithEmailAndPassword(
+        email: emailNormalizado,
+        password: senha,
+      );
+
+      User? firebaseUser = credential.user;
+
+      if (firebaseUser == null) {
+        throw Exception(
+          'Não foi possível autenticar no Firebase.',
+        );
+      }
+
+      print('====================================');
+      print('LOGIN FIREBASE REALIZADO');
+      print('UID: ${firebaseUser.uid}');
+      print('EMAIL: ${firebaseUser.email}');
+      print('====================================');
+
+      // ========================================================
+      // RECARREGAR USUÁRIO
+      // ========================================================
+
+      await firebaseUser.reload();
+
+      firebaseUser =
+          _firebaseAuth.currentUser;
+
+      if (firebaseUser == null) {
+        throw Exception(
+          'Usuário Firebase não encontrado.',
+        );
+      }
+
+      // ========================================================
+      // VERIFICAR E-MAIL
+      // ========================================================
+
+      if (!firebaseUser.emailVerified) {
+        await _firebaseAuth.signOut();
+
+        throw Exception(
+          'Seu e-mail ainda não foi verificado. '
+          'Verifique sua caixa de entrada antes de entrar.',
+        );
+      }
+
+      // ========================================================
+      // PEGAR ID TOKEN DO FIREBASE
+      // ========================================================
+
+      final firebaseIdToken =
+          await firebaseUser.getIdToken(true);
+
+      if (firebaseIdToken == null ||
+          firebaseIdToken.isEmpty) {
+        await _firebaseAuth.signOut();
+
+        throw Exception(
+          'Não foi possível obter o token do Firebase.',
+        );
+      }
+
+      print('====================================');
+      print('FIREBASE ID TOKEN OBTIDO');
+      print('TOKEN PRESENTE: SIM');
+      print('====================================');
+
+      // ========================================================
+      // ENVIAR TOKEN PARA FASTAPI
+      // ========================================================
+
+      final url =
+          Uri.parse('$baseUrl/auth/login');
+
+      final response = await _enviarRequisicao(
+        'POST',
+        url,
+        body: {
+          'firebase_id_token': firebaseIdToken,
+        },
+      );
+
+      print('====================================');
+      print('RESPOSTA FASTAPI LOGIN');
+      print('STATUS: ${response.statusCode}');
+      print('BODY: ${response.body}');
+      print('====================================');
+
+      // ========================================================
+      // ERRO FASTAPI
+      // ========================================================
+
+      if (response.statusCode != 200) {
+        await _firebaseAuth.signOut();
+
+        try {
+          final data =
+              jsonDecode(response.body);
+
+          throw Exception(
+            data['detail'] ??
+                'Login falhou: '
+                    '${response.statusCode}',
+          );
+        } catch (e) {
+          if (e is Exception) {
+            rethrow;
+          }
+
+          throw Exception(
+            'Login falhou: '
+            '${response.statusCode}',
+          );
+        }
+      }
+
+      // ========================================================
+      // LER RESPOSTA
+      // ========================================================
+
+      final data =
+          jsonDecode(response.body);
 
       final accessToken =
           data['access_token'];
@@ -298,12 +825,20 @@ class ApiService {
           data['admin'] ?? false;
 
       if (accessToken == null) {
+        await _firebaseAuth.signOut();
+
         throw Exception(
           'Token de acesso não recebido.',
         );
       }
 
-      await salvarToken(accessToken);
+      // ========================================================
+      // SALVAR TOKENS FASTAPI
+      // ========================================================
+
+      await salvarToken(
+        accessToken,
+      );
 
       if (refreshToken != null) {
         await salvarRefreshToken(
@@ -316,7 +851,12 @@ class ApiService {
       );
 
       print('====================================');
-      print('LOGIN REALIZADO');
+      print('LOGIN COMPLETO');
+      print('FIREBASE UID: ${firebaseUser.uid}');
+      print(
+        'EMAIL VERIFICADO: '
+        '${firebaseUser.emailVerified}',
+      );
       print('ADMIN: ${admin == true}');
       print('====================================');
 
@@ -326,8 +866,7 @@ class ApiService {
 
       try {
         final fcmToken =
-            await FirebaseMessaging.instance
-                .getToken();
+            await FirebaseMessaging.instance.getToken();
 
         if (fcmToken != null) {
           await salvarFCMToken(
@@ -345,359 +884,130 @@ class ApiService {
       }
 
       return accessToken;
-    }
-
-    try {
-      final data =
-          jsonDecode(response.body);
-
-      throw Exception(
-        data['detail'] ??
-            'Login falhou: ${response.statusCode}',
-      );
-    } catch (_) {
-      throw Exception(
-        'Login falhou: ${response.statusCode}',
-      );
-    }
-  }
-
-  // ============================================================
-  // CRIAR CONTA
-  //
-  // FLUXO:
-  //
-  // Flutter
-  //    ↓
-  // FastAPI
-  //    ↓
-  // PostgreSQL + Firebase Authentication
-  //    ↓
-  // Flutter entra no Firebase
-  //    ↓
-  // Firebase envia e-mail de verificação
-  // ============================================================
-
-  static Future<void> criarConta(
-    String nome,
-    String email,
-    String senha,
-  ) async {
-    final emailLimpo = email.trim();
-
-    // ==========================================================
-    // 1. CRIAR CONTA NO FASTAPI
-    // ==========================================================
-
-    final url =
-        Uri.parse('$baseUrl/auth/criar_conta');
-
-    final response =
-        await _enviarRequisicao(
-      'POST',
-      url,
-      body: {
-        'nome': nome,
-        'email_institucional': emailLimpo,
-        'senha': senha,
-      },
-    );
-
-    // ==========================================================
-    // VERIFICAR RESPOSTA DO FASTAPI
-    // ==========================================================
-
-    if (response.statusCode != 200 &&
-        response.statusCode != 201) {
-      try {
-        final data =
-            jsonDecode(response.body);
-
-        throw Exception(
-          data['detail'] ??
-              'Erro ao criar conta',
-        );
-      } catch (_) {
-        throw Exception(
-          'Erro ao criar conta: '
-          '${response.statusCode}',
-        );
-      }
-    }
-
-    print('====================================');
-    print('CONTA CRIADA NO FASTAPI');
-    print('EMAIL: $emailLimpo');
-    print('====================================');
-
-    // ==========================================================
-    // 2. ENTRAR NO FIREBASE
-    // ==========================================================
-
-    try {
-      final credential =
-          await FirebaseAuth.instance
-              .signInWithEmailAndPassword(
-        email: emailLimpo,
-        password: senha,
-      );
-
-      final user = credential.user;
-
-      if (user == null) {
-        throw Exception(
-          'Não foi possível acessar a conta '
-          'no Firebase.',
-        );
-      }
-
-      print('====================================');
-      print('LOGIN NO FIREBASE REALIZADO');
-      print('UID: ${user.uid}');
-      print('EMAIL: ${user.email}');
-      print('====================================');
-
-      // ========================================================
-      // 3. ENVIAR E-MAIL DE VERIFICAÇÃO
-      // ========================================================
-
-      if (!user.emailVerified) {
-        await user.sendEmailVerification();
-
-        print('====================================');
-        print('E-MAIL DE VERIFICAÇÃO ENVIADO');
-        print('PARA: ${user.email}');
-        print('====================================');
-      } else {
-        print(
-          'E-MAIL JÁ ESTAVA VERIFICADO.',
-        );
-      }
-
-      // ========================================================
-      // NÃO MANTER LOGIN NO FIREBASE
-      //
-      // O login real do aplicativo continua sendo
-      // controlado pelo JWT do FastAPI.
-      // ========================================================
-
-      await FirebaseAuth.instance.signOut();
-
     } on FirebaseAuthException catch (e) {
-      print('====================================');
-      print('ERRO NO FIREBASE AUTH');
-      print('CÓDIGO: ${e.code}');
-      print('MENSAGEM: ${e.message}');
-      print('====================================');
-
-      throw Exception(
-        'Sua conta foi criada, mas ocorreu '
-        'um erro ao enviar o e-mail de verificação: '
-        '${e.message ?? e.code}',
+      print(
+        'ERRO FIREBASE LOGIN: '
+        '${e.code} - ${e.message}',
       );
-    } catch (e) {
-      print('====================================');
-      print('ERRO AO ENVIAR VERIFICAÇÃO');
-      print(e);
-      print('====================================');
 
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception(
+            'Usuário não encontrado.',
+          );
+
+        case 'wrong-password':
+        case 'invalid-credential':
+          throw Exception(
+            'E-mail ou senha incorretos.',
+          );
+
+        case 'invalid-email':
+          throw Exception(
+            'E-mail inválido.',
+          );
+
+        case 'user-disabled':
+          throw Exception(
+            'Esta conta foi desativada.',
+          );
+
+        case 'too-many-requests':
+          throw Exception(
+            'Muitas tentativas. '
+            'Tente novamente mais tarde.',
+          );
+
+        default:
+          throw Exception(
+            'Erro ao fazer login: ${e.message}',
+          );
+      }
+    } catch (e) {
+      print('ERRO NO LOGIN: $e');
       rethrow;
     }
   }
 
   // ============================================================
-  // FIREBASE AUTH - VERIFICAR E-MAIL
+  // AUTH - RECUPERAR SENHA
   // ============================================================
 
-  static Future<bool> emailFoiVerificado(
+  static Future<void> recuperarSenha(
     String email,
-    String senha,
   ) async {
     try {
-      final credential =
-          await FirebaseAuth.instance
-              .signInWithEmailAndPassword(
-        email: email.trim(),
-        password: senha,
-      );
+      final emailNormalizado =
+          email.trim().toLowerCase();
 
-      final user = credential.user;
-
-      if (user == null) {
-        return false;
+      if (emailNormalizado.isEmpty) {
+        throw Exception(
+          'Informe seu e-mail.',
+        );
       }
 
-      await user.reload();
+      if (!emailInstitucionalValido(
+        emailNormalizado,
+      )) {
+        throw Exception(
+          'Use um e-mail institucional.',
+        );
+      }
 
-      final usuarioAtual =
-          FirebaseAuth.instance.currentUser;
-
-      final verificado =
-          usuarioAtual?.emailVerified ?? false;
-
-      await FirebaseAuth.instance.signOut();
+      await _firebaseAuth.sendPasswordResetEmail(
+        email: emailNormalizado,
+      );
 
       print('====================================');
-      print('VERIFICAÇÃO DE E-MAIL');
-      print('EMAIL: $email');
-      print('VERIFICADO: $verificado');
+      print('RECUPERAÇÃO DE SENHA');
+      print('E-MAIL: $emailNormalizado');
+      print('LINK ENVIADO PELO FIREBASE');
       print('====================================');
-
-      return verificado;
     } on FirebaseAuthException catch (e) {
-      print('====================================');
-      print('ERRO AO VERIFICAR E-MAIL');
-      print('CÓDIGO: ${e.code}');
-      print('MENSAGEM: ${e.message}');
-      print('====================================');
-
-      return false;
-    } catch (e) {
       print(
-        'ERRO AO VERIFICAR E-MAIL: $e',
+        'ERRO RECUPERAÇÃO: '
+        '${e.code} - ${e.message}',
       );
 
-      return false;
+      switch (e.code) {
+        case 'invalid-email':
+          throw Exception(
+            'E-mail inválido.',
+          );
+
+        case 'user-not-found':
+          throw Exception(
+            'Não encontramos uma conta com este e-mail.',
+          );
+
+        case 'too-many-requests':
+          throw Exception(
+            'Muitas solicitações. '
+            'Tente novamente mais tarde.',
+          );
+
+        default:
+          throw Exception(
+            'Não foi possível enviar o e-mail de recuperação: '
+            '${e.message}',
+          );
+      }
     }
   }
 
   // ============================================================
-  // FIREBASE AUTH - REENVIAR VERIFICAÇÃO
-  // ============================================================
-
-  static Future<void>
-      reenviarVerificacaoEmail(
-    String email,
-    String senha,
-  ) async {
-    try {
-      final credential =
-          await FirebaseAuth.instance
-              .signInWithEmailAndPassword(
-        email: email.trim(),
-        password: senha,
-      );
-
-      final user = credential.user;
-
-      if (user == null) {
-        throw Exception(
-          'Usuário não encontrado.',
-        );
-      }
-
-      await user.reload();
-
-      final usuarioAtual =
-          FirebaseAuth.instance.currentUser;
-
-      if (usuarioAtual?.emailVerified == true) {
-        await FirebaseAuth.instance.signOut();
-
-        throw Exception(
-          'Este e-mail já foi verificado.',
-        );
-      }
-
-      await usuarioAtual!
-          .sendEmailVerification();
-
-      print('====================================');
-      print('E-MAIL DE VERIFICAÇÃO REENVIADO');
-      print('PARA: ${usuarioAtual.email}');
-      print('====================================');
-
-      await FirebaseAuth.instance.signOut();
-
-    } on FirebaseAuthException catch (e) {
-      print('====================================');
-      print('ERRO AO REENVIAR VERIFICAÇÃO');
-      print('CÓDIGO: ${e.code}');
-      print('MENSAGEM: ${e.message}');
-      print('====================================');
-
-      throw Exception(
-        e.message ??
-            'Erro ao reenviar e-mail de verificação.',
-      );
-    }
-  }
-
-  // ============================================================
-  // LOGIN FORM - SWAGGER
+  // AUTH - LOGIN FORM SWAGGER
   // ============================================================
 
   static Future<String> loginForm(
     String email,
     String senha,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/auth/login-form');
-
-    final response =
-        await http.post(
-      url,
-      headers: {
-        'Content-Type':
-            'application/x-www-form-urlencoded',
-      },
-      body: {
-        'username': email,
-        'password': senha,
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data =
-          jsonDecode(response.body);
-
-      final accessToken =
-          data['access_token'];
-
-      final refreshToken =
-          data['refresh_token'];
-
-      final admin =
-          data['admin'] ?? false;
-
-      if (accessToken == null) {
-        throw Exception(
-          'Token de acesso não recebido.',
-        );
-      }
-
-      await salvarToken(accessToken);
-
-      if (refreshToken != null) {
-        await salvarRefreshToken(
-          refreshToken,
-        );
-      }
-
-      await salvarAdmin(
-        admin == true,
-      );
-
-      return accessToken;
-    }
-
-    try {
-      final data =
-          jsonDecode(response.body);
-
-      throw Exception(
-        data['detail'] ??
-            'Login falhou: ${response.statusCode}',
-      );
-    } catch (_) {
-      throw Exception(
-        'Login falhou: ${response.statusCode}',
-      );
-    }
+    return login(email, senha);
   }
 
   // ============================================================
-  // LOGOUT
+  // AUTH - LOGOUT
   // ============================================================
 
   static Future<void> logout() async {
@@ -710,9 +1020,11 @@ class ApiService {
         url,
         auth: true,
       );
-    } catch (_) {
-      // Mesmo se falhar, limpa a sessão local.
-    }
+    } catch (_) {}
+
+    try {
+      await _firebaseAuth.signOut();
+    } catch (_) {}
 
     await limparSessao();
   }
@@ -765,7 +1077,8 @@ class ApiService {
     }
 
     throw Exception(
-      'Erro ao carregar ações: ${response.statusCode}',
+      'Erro ao carregar ações: '
+      '${response.statusCode}',
     );
   }
 
@@ -817,7 +1130,8 @@ class ApiService {
     }
 
     throw Exception(
-      'Erro ao carregar fundos: ${response.statusCode}',
+      'Erro ao carregar fundos: '
+      '${response.statusCode}',
     );
   }
 
@@ -880,7 +1194,11 @@ class ApiService {
         data['detail'] ??
             'Erro ao pesquisar ativos.',
       );
-    } catch (_) {
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
       throw Exception(
         'Erro ao pesquisar ativos: '
         '${response.statusCode}',
@@ -994,8 +1312,7 @@ class ApiService {
   static Future<void> removerFavoritoAcao(
     String codigo,
   ) async {
-    final url =
-        Uri.parse(
+    final url = Uri.parse(
       '$baseUrl/favoritos/acoes/$codigo',
     );
 
@@ -1065,8 +1382,7 @@ class ApiService {
   static Future<void> removerFavoritoFundo(
     String codigo,
   ) async {
-    final url =
-        Uri.parse(
+    final url = Uri.parse(
       '$baseUrl/favoritos/fundos/$codigo',
     );
 
@@ -1086,7 +1402,7 @@ class ApiService {
   }
 
   // ============================================================
-  // CARTEIRA - RESUMO AGRUPADO
+  // CARTEIRA - RESUMO
   // ============================================================
 
   static Future<List<dynamic>>
@@ -1123,7 +1439,11 @@ class ApiService {
         data['detail'] ??
             'Erro ao carregar carteira.',
       );
-    } catch (_) {
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
       throw Exception(
         'Erro ao carregar carteira: '
         '${response.statusCode}',
@@ -1159,7 +1479,7 @@ class ApiService {
   }
 
   // ============================================================
-  // CARTEIRA - ADICIONAR ATIVO
+  // CARTEIRA - ADICIONAR
   // ============================================================
 
   static Future<void> adicionarAtivoCarteira(
@@ -1191,7 +1511,11 @@ class ApiService {
           data['detail'] ??
               'Erro ao adicionar ativo',
         );
-      } catch (_) {
+      } catch (e) {
+        if (e is Exception) {
+          rethrow;
+        }
+
         throw Exception(
           'Erro ao adicionar ativo: '
           '${response.statusCode}',
@@ -1201,7 +1525,7 @@ class ApiService {
   }
 
   // ============================================================
-  // CARTEIRA - ATUALIZAR ATIVO
+  // CARTEIRA - ATUALIZAR
   // ============================================================
 
   static Future<void> atualizarAtivoCarteira(
@@ -1231,7 +1555,7 @@ class ApiService {
   }
 
   // ============================================================
-  // CARTEIRA - REMOVER ATIVO
+  // CARTEIRA - REMOVER
   // ============================================================
 
   static Future<void> removerAtivoCarteira(
@@ -1339,8 +1663,7 @@ class ApiService {
           continue;
         }
 
-        final caminho =
-            material['url'];
+        final caminho = material['url'];
 
         if (caminho == null) {
           continue;
@@ -1370,15 +1693,6 @@ class ApiService {
           material['url'] =
               '$baseUrl/$caminhoString';
         }
-
-        print('====================================');
-        print('MATERIAL CARREGADO');
-        print('ID: ${material['id']}');
-        print('TÍTULO: ${material['titulo']}');
-        print(
-          'URL FINAL: ${material['url']}',
-        );
-        print('====================================');
       }
 
       return materiais;
@@ -1416,8 +1730,7 @@ class ApiService {
           'Bearer $token';
     }
 
-    request.fields['titulo'] =
-        titulo;
+    request.fields['titulo'] = titulo;
 
     if (descricao != null &&
         descricao.trim().isNotEmpty) {
@@ -1447,12 +1760,6 @@ class ApiService {
       ),
     );
 
-    print('====================================');
-    print('ENVIANDO MATERIAL');
-    print('TÍTULO: $titulo');
-    print('ARQUIVO: $caminhoArquivo');
-    print('====================================');
-
     final streamedResponse =
         await request.send();
 
@@ -1460,14 +1767,6 @@ class ApiService {
         await http.Response.fromStream(
       streamedResponse,
     );
-
-    print('====================================');
-    print('RESPOSTA DO UPLOAD');
-    print(
-      'STATUS: ${response.statusCode}',
-    );
-    print('BODY: ${response.body}');
-    print('====================================');
 
     if (response.statusCode == 200 ||
         response.statusCode == 201) {
@@ -1512,7 +1811,11 @@ class ApiService {
         data['detail'] ??
             'Erro ao adicionar material.',
       );
-    } catch (_) {
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
       throw Exception(
         'Erro ao adicionar material: '
         '${response.statusCode}',
@@ -1565,7 +1868,11 @@ class ApiService {
         data['detail'] ??
             'Erro ao excluir material.',
       );
-    } catch (_) {
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
       throw Exception(
         'Erro ao excluir material: '
         '${response.statusCode}',
@@ -1656,7 +1963,11 @@ class ApiService {
         data['detail'] ??
             'Erro ao adicionar vídeo.',
       );
-    } catch (_) {
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
       throw Exception(
         'Erro ao adicionar vídeo: '
         '${response.statusCode}',
@@ -1731,7 +2042,11 @@ class ApiService {
         data['detail'] ??
             'Erro ao editar vídeo.',
       );
-    } catch (_) {
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
       throw Exception(
         'Erro ao editar vídeo: '
         '${response.statusCode}',
@@ -1778,7 +2093,11 @@ class ApiService {
         data['detail'] ??
             'Erro ao excluir vídeo.',
       );
-    } catch (_) {
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
       throw Exception(
         'Erro ao excluir vídeo: '
         '${response.statusCode}',
@@ -1840,6 +2159,52 @@ class ApiService {
   }
 
   // ============================================================
+  // USUÁRIO - ATUALIZAR PERFIL (NOME)
+  // (trazido da versão sem Firebase)
+  // ============================================================
+
+  static Future<void> atualizarPerfil(
+    String nome,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/usuario/me',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'PUT',
+      url,
+      body: {
+        'nome': nome,
+      },
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao atualizar perfil',
+      );
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
+      throw Exception(
+        'Erro ao atualizar perfil: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+  // ============================================================
   // USUÁRIO - AVATAR
   // ============================================================
 
@@ -1868,6 +2233,57 @@ class ApiService {
   }
 
   // ============================================================
+  // USUÁRIO - SENHA
+  // (trazido da versão sem Firebase — atenção: se a senha é
+  // gerenciada pelo Firebase, avalie se este endpoint ainda
+  // faz sentido no backend, ou se a troca de senha deveria
+  // usar _firebaseAuth.currentUser?.updatePassword(...))
+  // ============================================================
+
+  static Future<void> alterarSenha(
+    String senhaAtual,
+    String novaSenha,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/usuario/senha',
+    );
+
+    final response =
+        await _enviarRequisicao(
+      'PUT',
+      url,
+      body: {
+        'senha_atual': senhaAtual,
+        'nova_senha': novaSenha,
+      },
+      auth: true,
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    try {
+      final data =
+          jsonDecode(response.body);
+
+      throw Exception(
+        data['detail'] ??
+            'Erro ao alterar senha',
+      );
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+
+      throw Exception(
+        'Erro ao alterar senha: '
+        '${response.statusCode}',
+      );
+    }
+  }
+
+  // ============================================================
   // NOTIFICAÇÕES - ENVIAR
   // ============================================================
 
@@ -1877,9 +2293,7 @@ class ApiService {
     String tipo = 'SISTEMA',
   }) async {
     final url =
-        Uri.parse(
-      '$baseUrl/notificacoes/enviar',
-    );
+        Uri.parse('$baseUrl/notificacoes/enviar');
 
     final response =
         await _enviarRequisicao(
@@ -1902,7 +2316,11 @@ class ApiService {
           data['detail'] ??
               'Erro ao enviar notificação',
         );
-      } catch (_) {
+      } catch (e) {
+        if (e is Exception) {
+          rethrow;
+        }
+
         throw Exception(
           'Erro ao enviar notificação: '
           '${response.statusCode}',
@@ -1997,7 +2415,11 @@ class ApiService {
           data['detail'] ??
               'Erro ao marcar notificação como lida',
         );
-      } catch (_) {
+      } catch (e) {
+        if (e is Exception) {
+          rethrow;
+        }
+
         throw Exception(
           'Erro ao marcar notificação como lida: '
           '${response.statusCode}',

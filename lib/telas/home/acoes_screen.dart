@@ -446,7 +446,31 @@ class _AcoesScreenState extends State<AcoesScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      // Reverte caso a API falhe.
+      final mensagem = e.toString().replaceFirst(
+            'Exception: ',
+            '',
+          );
+
+      // ========================================================
+      // O backend recusou porque o estado real já é o mesmo que
+      // a UI já está mostrando de forma otimista (ex: tentou
+      // adicionar algo que já estava favoritado, ou remover algo
+      // que já tinha sido removido). Isso normalmente acontece
+      // quando _carregarFavoritos() ainda não tinha terminado
+      // quando o usuário clicou. Nesse caso NÃO revertemos —
+      // o estado otimista já está correto.
+      // ========================================================
+
+      final estadoJaEraOEsperado =
+          mensagem.contains('já está nos favoritos') ||
+          mensagem.contains('não encontrada nos favoritos') ||
+          mensagem.contains('não encontrado nos favoritos');
+
+      if (estadoJaEraOEsperado) {
+        return;
+      }
+
+      // Reverte caso a API falhe de verdade.
       setState(() {
         if (jaFavoritado) {
           _favoritos.add(codigo);
@@ -457,12 +481,7 @@ class _AcoesScreenState extends State<AcoesScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            e.toString().replaceFirst(
-                  'Exception: ',
-                  '',
-                ),
-          ),
+          content: Text(mensagem),
         ),
       );
     }
@@ -1159,4 +1178,3 @@ class _AcoesScreenState extends State<AcoesScreen> {
     super.dispose();
   }
 }
-

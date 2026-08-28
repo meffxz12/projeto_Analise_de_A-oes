@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+
 import 'package:meu_apli/componentes/button.dart';
-import 'package:meu_apli/componentes/text_form_global.dart';
 import 'package:meu_apli/services/apiservice.dart';
 import 'package:meu_apli/navegacao/navegacaotelas.dart';
 import 'package:meu_apli/telas/auth/cadastro.dart';
@@ -15,7 +15,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _senha = TextEditingController();
+
   bool _loading = false;
+  String? _erro;
 
   @override
   void dispose() {
@@ -24,23 +26,29 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // ==========================================================
+  // LOGIN
+  // ==========================================================
+
   Future<void> _login() async {
-    if (_email.text.isEmpty || _senha.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha email e senha')),
-      );
+    if (_email.text.trim().isEmpty || _senha.text.isEmpty) {
+      setState(() => _erro = 'Preencha email e senha');
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _erro = null;
+    });
 
     try {
       await ApiService.login(
         _email.text.trim(),
-        _senha.text.trim(),
+        _senha.text,
       );
 
       if (!mounted) return;
+
       Navigator.pushAndRemoveUntil(
         context,
         _fadeRoute(const MainNavegacao()),
@@ -48,13 +56,124 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      setState(() {
+        _erro = e.toString().replaceFirst('Exception: ', '');
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
+
+  // ==========================================================
+  // RECUPERAR SENHA
+  // ==========================================================
+
+  Future<void> _mostrarRecuperacaoSenha() async {
+    final controller = TextEditingController(text: _email.text.trim());
+    final formKey = GlobalKey<FormState>();
+    bool enviando = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Recuperar senha'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Digite seu e-mail institucional. '
+                      'Enviaremos um link para você criar uma nova senha.',
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: controller,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'E-mail institucional',
+                        prefixIcon: Icon(Icons.email),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Informe seu e-mail';
+                        }
+
+                        if (!value.trim().toLowerCase().endsWith('@ifma.edu.br')) {
+                          return 'Use seu e-mail institucional';
+                        }
+
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: enviando ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: enviando
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+
+                          setDialogState(() => enviando = true);
+
+                          try {
+                            await ApiService.recuperarSenha(controller.text.trim());
+
+                            if (!mounted) return;
+
+                            Navigator.pop(dialogContext);
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'E-mail de recuperação enviado! '
+                                  'Verifique sua caixa de entrada.',
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            setDialogState(() => enviando = false);
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.toString().replaceFirst('Exception: ', ''),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: enviando
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Enviar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+  }
+
+  // ==========================================================
+  // ANIMAÇÃO
+  // ==========================================================
 
   PageRouteBuilder _fadeRoute(Widget page) {
     return PageRouteBuilder(
@@ -63,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return FadeTransition(
           opacity: animation,
           child: SlideTransition(
-            position: Tween(
+            position: Tween<Offset>(
               begin: const Offset(0, 0.1),
               end: Offset.zero,
             ).chain(CurveTween(curve: Curves.easeInOut)).animate(animation),
@@ -106,6 +225,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 25),
+
+                    // E-MAIL
                     TextFormField(
                       controller: _email,
                       decoration: const InputDecoration(
@@ -116,6 +237,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 20),
+
+                    // SENHA
                     TextFormField(
                       controller: _senha,
                       decoration: const InputDecoration(
@@ -127,7 +250,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => _login(),
                     ),
+
+                    // ERRO INLINE
+                    if (_erro != null) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _erro!,
+                              style: const TextStyle(color: Colors.red, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
                     const SizedBox(height: 25),
+
+                    // BOTÃO LOGIN
                     _loading
                         ? const CircularProgressIndicator(color: Color(0xFF6A5AE0))
                         : ButtonGlobal(
@@ -137,11 +280,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             icons: Icons.login,
                             onTap: _login,
                           ),
-                    const SizedBox(height: 15),
+
+                    // ESQUECEU A SENHA
                     TextButton(
-                      onPressed: () {},
-                      child: const Text('Esqueceu a senha?', style: TextStyle(color: Colors.grey)),
+                      onPressed: _mostrarRecuperacaoSenha,
+                      child: const Text(
+                        'Esqueceu a senha?',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ),
+
+                    // CADASTRO
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [

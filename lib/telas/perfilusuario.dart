@@ -3,6 +3,8 @@ import 'package:meu_apli/cores/coresglobais.dart';
 import 'package:meu_apli/services/apiservice.dart';
 import 'package:meu_apli/telas/auth/login.dart';
 import 'package:meu_apli/telas/notificacoes_screen.dart';
+import 'package:meu_apli/telas/home/configuracao/alterar_senha_screen.dart';
+import 'package:meu_apli/telas/home/configuracao/configuracao_screen.dart';
 
 const List<String> kAvataresDisponiveis = [
   'avatar_1', 'avatar_2', 'avatar_3', 'avatar_4',
@@ -234,20 +236,36 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
 
           const SizedBox(height: 20),
-          _itemPerfil(Icons.settings, "Configurações"),
-          _itemPerfil(Icons.security, "Segurança"),
+
           _itemPerfil(
-  Icons.notifications,
-  "Notificações",
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const NotificacoesScreen(),
-      ),
-    );
-  },
-),
+            Icons.settings,
+            "Configurações",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ConfiguracoesScreen(
+                    nomeAtual: _userProfile!.name,
+                    emailAtual: _userProfile!.email,
+                  ),
+                ),
+              );
+            },
+          ),
+
+          _itemPerfil(
+            Icons.notifications,
+            "Notificações",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificacoesScreen(),
+                ),
+              );
+            },
+          ),
+
           _itemPerfil(Icons.logout, "Sair", isLogout: true, onTap: _logout),
         ],
       ),

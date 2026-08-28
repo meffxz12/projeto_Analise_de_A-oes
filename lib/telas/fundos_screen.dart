@@ -315,7 +315,11 @@ class _FundosScreenState
             ),
           );
       });
-    } catch (_) {}
+    } catch (e) {
+      debugPrint(
+        '[FAVORITOS] Erro ao carregar fundos: $e',
+      );
+    }
   }
 
   Future<void> _toggleFavorito(
@@ -347,6 +351,27 @@ class _FundosScreenState
     } catch (e) {
       if (!mounted) return;
 
+      final mensagem = e.toString().replaceFirst(
+            'Exception: ',
+            '',
+          );
+
+      // ========================================================
+      // O backend recusou porque o estado real já é o mesmo que
+      // a UI já está mostrando de forma otimista. Não reverte
+      // nesse caso — só reverte em erro de verdade (rede, 401
+      // sem sessão válida, etc).
+      // ========================================================
+
+      final estadoJaEraOEsperado =
+          mensagem.contains('já está nos favoritos') ||
+          mensagem.contains('não encontrado nos favoritos') ||
+          mensagem.contains('não encontrada nos favoritos');
+
+      if (estadoJaEraOEsperado) {
+        return;
+      }
+
       setState(() {
         if (jaFavoritado) {
           _favoritos.add(codigo);
@@ -358,14 +383,7 @@ class _FundosScreenState
       ScaffoldMessenger.of(context)
           .showSnackBar(
         SnackBar(
-          content: Text(
-            e
-                .toString()
-                .replaceFirst(
-                  'Exception: ',
-                  '',
-                ),
-          ),
+          content: Text(mensagem),
         ),
       );
     }
