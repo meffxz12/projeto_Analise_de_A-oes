@@ -167,8 +167,7 @@ class _HomeScreenState extends State<HomeScreen>
       print('BUSCA: $texto');
       print('====================================');
 
-      final resultados =
-          await ApiService.pesquisarAtivos(
+      final resultados = await ApiService.pesquisarAtivos(
         texto,
         tipo: 'todos',
         limit: 30,
@@ -197,9 +196,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       setState(() {
         _pesquisandoAtivos = false;
-        _erroBusca = e
-            .toString()
-            .replaceFirst(
+        _erroBusca = e.toString().replaceFirst(
               'Exception: ',
               '',
             );
@@ -213,8 +210,17 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _carregarVideos() async {
     try {
-      final videos =
-          await ApiService.listarVideos();
+      setState(() {
+        _carregandoVideos = true;
+      });
+
+      final videos = await ApiService.listarVideos();
+
+      print('====================================');
+      print('VÍDEOS RECEBIDOS NA HOME');
+      print('QUANTIDADE: ${videos.length}');
+      print('DADOS: $videos');
+      print('====================================');
 
       if (!mounted) return;
 
@@ -247,6 +253,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         _carregarNotificacoesNaoLidas();
         _carregarPerfil();
+        _carregarVideos();
       }
     }
   }
@@ -307,7 +314,6 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           children: [
             _buildHeader(context),
-
             Expanded(
               child: _query.isNotEmpty
                   ? _buildResultadosBusca()
@@ -445,17 +451,32 @@ class _HomeScreenState extends State<HomeScreen>
     final videosRecentes =
         List<dynamic>.from(_videos);
 
-    // A API normalmente já retorna os vídeos
-    // em ordem de cadastro. Mantemos apenas
-    // os 3 primeiros para a Home.
+    // Ordena os vídeos do maior ID para o menor.
+    // Assim, os vídeos cadastrados mais recentemente
+    // aparecem primeiro.
 
-    final quantidade =
-        videosRecentes.length > 3
-            ? 3
-            : videosRecentes.length;
+    videosRecentes.sort(
+      (a, b) {
+        final idA =
+            int.tryParse(
+              a['id']?.toString() ?? '0',
+            ) ??
+            0;
+
+        final idB =
+            int.tryParse(
+              b['id']?.toString() ?? '0',
+            ) ??
+            0;
+
+        return idB.compareTo(idA);
+      },
+    );
+
+    // Pega no máximo os 3 vídeos mais recentes.
 
     final ultimosVideos =
-        videosRecentes.take(quantidade).toList();
+        videosRecentes.take(3).toList();
 
     return Column(
       crossAxisAlignment:
@@ -496,10 +517,18 @@ class _HomeScreenState extends State<HomeScreen>
                   url.split('v=').last.split('&').first;
             } else if (url.contains('youtu.be/')) {
               videoId =
-                  url.split('youtu.be/').last.split('?').first;
+                  url
+                      .split('youtu.be/')
+                      .last
+                      .split('?')
+                      .first;
             } else if (url.contains('/shorts/')) {
               videoId =
-                  url.split('/shorts/').last.split('?').first;
+                  url
+                      .split('/shorts/')
+                      .last
+                      .split('?')
+                      .first;
             }
 
             return Padding(
@@ -801,8 +830,7 @@ class _HomeScreenState extends State<HomeScreen>
                           ? IconButton(
                               icon:
                                   const Icon(
-                                Icons
-                                    .close_rounded,
+                                Icons.close_rounded,
                                 color:
                                     Colors.white70,
                               ),
@@ -839,8 +867,7 @@ class _HomeScreenState extends State<HomeScreen>
 
               if (!mounted) return;
 
-              await
-                  _carregarNotificacoesNaoLidas();
+              await _carregarNotificacoesNaoLidas();
             },
             borderRadius:
                 BorderRadius.circular(20),
@@ -853,21 +880,18 @@ class _HomeScreenState extends State<HomeScreen>
                   backgroundColor:
                       Colors.white24,
                   child: Icon(
-                    Icons
-                        .notifications_rounded,
+                    Icons.notifications_rounded,
                     color: Colors.white,
                   ),
                 ),
 
-                if (_notificacoesNaoLidas >
-                    0)
+                if (_notificacoesNaoLidas > 0)
                   Positioned(
                     right: -5,
                     top: -5,
                     child: Container(
                       padding:
-                          const EdgeInsets
-                              .symmetric(
+                          const EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 2,
                       ),
@@ -886,18 +910,15 @@ class _HomeScreenState extends State<HomeScreen>
                           28,
                         ),
                         borderRadius:
-                            BorderRadius
-                                .circular(10),
+                            BorderRadius.circular(10),
                         border:
                             Border.all(
-                          color:
-                              Colors.white,
+                          color: Colors.white,
                           width: 1.5,
                         ),
                       ),
                       child: Text(
-                        _notificacoesNaoLidas >
-                                99
+                        _notificacoesNaoLidas > 99
                             ? '99+'
                             : _notificacoesNaoLidas
                                 .toString(),
@@ -905,8 +926,7 @@ class _HomeScreenState extends State<HomeScreen>
                             TextAlign.center,
                         style:
                             const TextStyle(
-                          color:
-                              Colors.white,
+                          color: Colors.white,
                           fontSize: 10,
                           fontWeight:
                               FontWeight.bold,
@@ -936,14 +956,11 @@ class _HomeScreenState extends State<HomeScreen>
 
               if (!mounted) return;
 
-              // Depois que o usuário volta
-              // do perfil, busca novamente
-              // o avatar atualizado.
-
               await _carregarPerfil();
 
-              await
-                  _carregarNotificacoesNaoLidas();
+              await _carregarNotificacoesNaoLidas();
+
+              await _carregarVideos();
             },
             borderRadius:
                 BorderRadius.circular(20),

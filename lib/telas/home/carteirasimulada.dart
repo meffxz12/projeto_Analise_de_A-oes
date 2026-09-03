@@ -17,10 +17,38 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
 
   String? _erro;
 
+  // ============================================================
+  // AVATAR DO USUÁRIO
+  // ============================================================
+
+  String _avatar = 'avatar_1';
+
   @override
   void initState() {
     super.initState();
+
     _carregar();
+    _carregarAvatar();
+  }
+
+  // ============================================================
+  // CARREGAR AVATAR
+  // ============================================================
+
+  Future<void> _carregarAvatar() async {
+    try {
+      final data = await ApiService.buscarPerfil();
+
+      if (!mounted) return;
+
+      setState(() {
+        _avatar = data['avatar']?.toString() ?? 'avatar_1';
+      });
+    } catch (e) {
+      debugPrint(
+        'Erro ao carregar avatar: $e',
+      );
+    }
   }
 
   // ============================================================
@@ -473,36 +501,43 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                         ],
                       ),
 
+                      // ========================================
+                      // AVATAR DO USUÁRIO
+                      // ========================================
+
                       InkWell(
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder:
                                   (context) =>
-                                      PerfilScreen(),
+                                      const PerfilScreen(),
                             ),
                           );
+
+                          // Atualiza o avatar
+                          // caso o usuário tenha
+                          // trocado a foto no perfil.
+                          await _carregarAvatar();
                         },
 
                         borderRadius:
                             BorderRadius
                                 .circular(
-                          20,
+                          22,
                         ),
 
                         child:
-                            const CircleAvatar(
+                            CircleAvatar(
                           radius: 20,
+
                           backgroundColor:
-                              Colors
-                                  .white24,
-                          child:
-                              Icon(
-                            Icons
-                                .person_rounded,
-                            color:
-                                Colors.white,
+                              Colors.white24,
+
+                          backgroundImage:
+                              AssetImage(
+                            'assets/avatars/$_avatar.png',
                           ),
                         ),
                       ),
@@ -676,7 +711,8 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                                   // =================================
 
                                   Text(
-                                    '${_ativos.length} posição${_ativos.length != 1 ? 'ões' : ''}',
+                                  '${_ativos.length} ${_ativos.length == 1 ? 'posição' : 'posições'}',
+
                                     style:
                                         TextStyle(
                                       color:
@@ -791,7 +827,8 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                           TextStyle(
                         color:
                             Colors.grey[400],
-                        fontSize: 11,
+                        fontSize:
+                            11,
                       ),
                     ),
                   ],
@@ -1436,4 +1473,3 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
     );
   }
 }
-
