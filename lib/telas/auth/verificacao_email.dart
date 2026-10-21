@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:meu_apli/services/apiservice.dart';
 import 'package:meu_apli/telas/auth/login.dart';
 
@@ -23,7 +24,7 @@ bool _loading = false;
 Future<void> _verificar() async {
 setState(() => _loading = true);
 
-```
+
 try {
   final verificado =
       await ApiService.verificarEmailFirebase();
@@ -88,7 +89,7 @@ try {
     setState(() => _loading = false);
   }
 }
-```
+
 
 }
 
@@ -96,7 +97,7 @@ Future<void> _reenviarEmail() async {
 try {
 await ApiService.reenviarEmailVerificacao();
 
-```
+
   if (!mounted) return;
 
   ScaffoldMessenger.of(context).showSnackBar(
@@ -120,14 +121,14 @@ await ApiService.reenviarEmailVerificacao();
     ),
   );
 }
-```
+
 
 }
 
 Future<void> _cancelar() async {
 await FirebaseAuth.instance.signOut();
 
-```
+
 if (!mounted) return;
 
 Navigator.pushAndRemoveUntil(
@@ -137,7 +138,7 @@ Navigator.pushAndRemoveUntil(
   ),
   (route) => false,
 );
-```
+
 
 }
 
@@ -180,7 +181,7 @@ size: 80,
 color: Color(0xFF6A5AE0),
 ),
 
-```
+
                 const SizedBox(height: 20),
 
                 const Text(
@@ -265,7 +266,7 @@ color: Color(0xFF6A5AE0),
     ),
   ),
 );
-```
+
 
 }
 }

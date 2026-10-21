@@ -1,643 +1,334 @@
 import 'package:flutter/material.dart';
+
 import 'package:meu_apli/services/apiservice.dart';
-import 'package:meu_apli/componentes/button.dart';
 import 'package:meu_apli/componentes/text_form_global.dart';
-import 'package:meu_apli/telas/auth/login.dart';
-
-
-String _formatarNome(String nome) {
-  return nome
-      .split(' ')
-      .map(
-        (p) => p.isEmpty
-            ? ''
-            : p[0].toUpperCase() +
-                p.substring(1).toLowerCase(),
-      )
-      .join(' ');
-}
-
-
-bool _emailInstitucionalValido(String email) {
-  final emailNormalizado = email.trim().toLowerCase();
-
-  return emailNormalizado.endsWith('@ifma.edu.br') ||
-      emailNormalizado.endsWith('@acad.ifma.edu.br');
-}
-
+import 'package:meu_apli/telas/auth/verificacao_email.dart';
 
 class CadastroScreen extends StatefulWidget {
   const CadastroScreen({super.key});
 
   @override
-  State<CadastroScreen> createState() =>
-      _CadastroScreenState();
+  State<CadastroScreen> createState() => _CadastroScreenState();
 }
 
+class _CadastroScreenState extends State<CadastroScreen> {
+  final _formKey = GlobalKey<FormState>();
 
-class _CadastroScreenState
-    extends State<CadastroScreen> {
-
-  final _formKey =
-      GlobalKey<FormState>();
-
-  final _nome =
+  final TextEditingController _nomeController =
       TextEditingController();
 
-  final _email =
+  final TextEditingController _emailController =
       TextEditingController();
 
-  final _senha =
+  final TextEditingController _senhaController =
       TextEditingController();
 
-  final _confirmaSenha =
+  final TextEditingController _confirmarSenhaController =
       TextEditingController();
 
-  bool _loading = false;
+  bool _carregando = false;
 
-  // E-mail já cadastrado (retornado pelo backend/Firebase).
-  String? _erroEmail;
-
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Assim que o usuário mexe no e-mail de novo,
-    // some o erro de "já cadastrado" anterior.
-    _email.addListener(() {
-      if (_erroEmail != null) {
-        setState(() => _erroEmail = null);
-      }
-    });
-  }
-
+  static const Color roxo = Color(0xFF6A5AE0);
 
   @override
   void dispose() {
-
-    _nome.dispose();
-    _email.dispose();
-    _senha.dispose();
-    _confirmaSenha.dispose();
-
+    _nomeController.dispose();
+    _emailController.dispose();
+    _senhaController.dispose();
+    _confirmarSenhaController.dispose();
     super.dispose();
   }
 
+  String? _validarNome(String? valor) {
+    final nome = valor?.trim() ?? '';
 
-  // ==========================================================
-  // CADASTRAR
-  // ==========================================================
-
-  Future<void> _cadastrar() async {
-
-    setState(() {
-      _erroEmail = null;
-    });
-
-    if (!_formKey.currentState!.validate()) {
-      return;
+    if (nome.isEmpty) {
+      return 'Informe seu nome.';
     }
 
+    if (nome.length < 3) {
+      return 'Digite seu nome completo.';
+    }
+
+    return null;
+  }
+
+  String? _validarEmail(String? valor) {
+    final email = valor?.trim().toLowerCase() ?? '';
+
+    if (email.isEmpty) {
+      return 'Informe seu e-mail institucional.';
+    }
+
+    final formatoValido =
+        RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+    if (!formatoValido) {
+      return 'Informe um e-mail válido.';
+    }
+
+    final dominioPermitido =
+        email.endsWith('@ifma.edu.br') ||
+        email.endsWith('@acad.ifma.edu.br');
+
+    if (!dominioPermitido) {
+      return 'Utilize seu e-mail institucional do IFMA.';
+    }
+
+    return null;
+  }
+
+  String? _validarSenha(String? valor) {
+    if (valor == null || valor.isEmpty) {
+      return 'Crie uma senha.';
+    }
+
+    if (valor.length < 6) {
+      return 'A senha deve ter pelo menos 6 caracteres.';
+    }
+
+    return null;
+  }
+
+  String? _validarConfirmacao(String? valor) {
+    if (valor == null || valor.isEmpty) {
+      return 'Confirme sua senha.';
+    }
+
+    if (valor != _senhaController.text) {
+      return 'As senhas não coincidem.';
+    }
+
+    return null;
+  }
+
+  Future<void> _cadastrar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    FocusScope.of(context).unfocus();
+
     setState(() {
-      _loading = true;
+      _carregando = true;
     });
 
-
     try {
-
       await ApiService.criarConta(
-        _nome.text.trim(),
-        _email.text.trim().toLowerCase(),
-        _senha.text.trim(),
+        _nomeController.text.trim(),
+        _emailController.text.trim().toLowerCase(),
+        _senhaController.text,
       );
 
+      if (!mounted) return;
 
-      if (!mounted) {
-        return;
-      }
-
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Conta criada! Verifique seu e-mail antes de entrar.',
+            'Cadastro enviado. Confira as instruções de verificação '
+            'do seu e-mail.',
           ),
         ),
       );
 
-      Navigator.pushAndRemoveUntil(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              const LoginScreen(),
+          builder: (_) => VerificacaoEmailScreen(
+            nome: _nomeController.text.trim(),
+          ),
         ),
-        (route) => false,
       );
-
     } catch (e) {
+      if (!mounted) return;
 
-      if (!mounted) {
-        return;
-      }
-
-      final mensagem = e
-          .toString()
-          .replaceFirst(
-            'Exception: ',
-            '',
-          );
-
-      // ========================================================
-      // E-MAIL JÁ CADASTRADO
-      // Mostra inline, embaixo do campo, além do SnackBar.
-      // ========================================================
-
-      final emailJaCadastrado =
-          mensagem.contains('já possui uma conta') ||
-          mensagem.contains('já está cadastrado') ||
-          mensagem.contains('já está em uso');
-
-      setState(() {
-        if (emailJaCadastrado) {
-          _erroEmail = mensagem;
-        }
-      });
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(mensagem),
+          content: Text('Não foi possível concluir o cadastro: $e'),
         ),
       );
-
     } finally {
-
       if (mounted) {
-
         setState(() {
-          _loading = false;
+          _carregando = false;
         });
-
       }
     }
   }
 
-
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-
+  Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F6FC),
+      appBar: AppBar(
+        title: const Text('Criar conta'),
+        backgroundColor: roxo,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Cadastre-se no InvestServ',
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.bold,
+                        color: roxo,
+                      ),
+                    ),
 
-      body: Container(
+                    const SizedBox(height: 8),
 
-        decoration:
-            const BoxDecoration(
+                    const Text(
+                      'Crie sua conta para acessar as funcionalidades '
+                      'do aplicativo.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                      ),
+                    ),
 
-          gradient:
-              LinearGradient(
+                    const SizedBox(height: 28),
 
-            colors: [
-              Color(0xFF6A5AE0),
-              Color(0xFF8E7CFF),
-            ],
+                    const Text(
+                      'Nome completo',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
 
-            begin:
-                Alignment.topCenter,
+                    const SizedBox(height: 8),
 
-            end:
-                Alignment.bottomCenter,
-          ),
-        ),
+                    TextFormGlobal(
+                      controller: _nomeController,
+                      hintText: 'Digite seu nome completo',
+                      keyboardType: TextInputType.name,
+                      textInputAction: TextInputAction.next,
+                      prefixIcon: const Icon(
+                        Icons.person_outline,
+                        color: roxo,
+                      ),
+                      validator: _validarNome,
+                    ),
 
+                    const SizedBox(height: 18),
 
-        child: SafeArea(
+                    const Text(
+                      'E-mail institucional',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
 
-          child: Center(
+                    const SizedBox(height: 8),
 
-            child:
-                SingleChildScrollView(
+                    TextFormGlobal(
+                      controller: _emailController,
+                      hintText: 'seuemail@ifma.edu.br',
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      prefixIcon: const Icon(
+                        Icons.email_outlined,
+                        color: roxo,
+                      ),
+                      validator: _validarEmail,
+                    ),
 
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal: 25,
-              ),
+                    const SizedBox(height: 18),
 
+                    const Text(
+                      'Senha',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
 
-              child: Container(
+                    const SizedBox(height: 8),
 
-                padding:
-                    const EdgeInsets.all(25),
+                    TextFormGlobal(
+                      controller: _senhaController,
+                      hintText: 'Crie uma senha',
+                      obscureText: true,
+                      canToggleVisibility: true,
+                      textInputAction: TextInputAction.next,
+                      prefixIcon: const Icon(
+                        Icons.lock_outline,
+                        color: roxo,
+                      ),
+                      validator: _validarSenha,
+                    ),
 
+                    const SizedBox(height: 18),
 
-                decoration:
-                    BoxDecoration(
+                    const Text(
+                      'Confirmar senha',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
 
-                  color:
-                      Colors.white,
+                    const SizedBox(height: 8),
 
-                  borderRadius:
-                      BorderRadius.circular(
-                    25,
-                  ),
+                    TextFormGlobal(
+                      controller: _confirmarSenhaController,
+                      hintText: 'Digite a senha novamente',
+                      obscureText: true,
+                      canToggleVisibility: true,
+                      textInputAction: TextInputAction.done,
+                      prefixIcon: const Icon(
+                        Icons.lock_reset_outlined,
+                        color: roxo,
+                      ),
+                      validator: _validarConfirmacao,
+                      onFieldSubmitted: (_) => _cadastrar(),
+                    ),
 
-                  boxShadow:
-                      const [
+                    const SizedBox(height: 28),
 
-                    BoxShadow(
-                      color:
-                          Colors.black12,
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _carregando ? null : _cadastrar,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: roxo,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: _carregando
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Criar conta',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                      ),
+                    ),
 
-                      blurRadius:
-                          20,
+                    const SizedBox(height: 16),
 
-                      offset:
-                          Offset(0, 10),
+                    TextButton(
+                      onPressed: _carregando
+                          ? null
+                          : () => Navigator.pop(context),
+                      child: const Text(
+                        'Já tenho uma conta',
+                        style: TextStyle(
+                          color: roxo,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ],
-                ),
-
-
-                child: Form(
-
-                  key:
-                      _formKey,
-
-
-                  child: Column(
-
-                    children: [
-
-                      const Text(
-
-                        'Criar conta',
-
-                        style:
-                            TextStyle(
-
-                          fontSize:
-                              26,
-
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-
-
-                      const SizedBox(
-                        height: 25,
-                      ),
-
-
-                      // ==================================================
-                      // NOME
-                      // ==================================================
-
-                      TextFormGlobal(
-
-                        controller:
-                            _nome,
-
-                        text:
-                            'Nome completo',
-
-                        obscure:
-                            false,
-
-                        textInputType:
-                            TextInputType.name,
-
-                        prefixicon:
-                            Icons.person,
-
-
-                        onChanged: (v) {
-
-                          final fmt =
-                              _formatarNome(v);
-
-
-                          _nome.value =
-                              TextEditingValue(
-
-                            text:
-                                fmt,
-
-                            selection:
-                                TextSelection.collapsed(
-                              offset:
-                                  fmt.length,
-                            ),
-                          );
-                        },
-
-
-                        validator: (v) {
-
-                          if (v == null ||
-                              v.trim().isEmpty) {
-
-                            return
-                                'Informe seu nome completo';
-                          }
-
-
-                          if (v.trim()
-                                  .split(' ')
-                                  .length <
-                              2) {
-
-                            return
-                                'Digite nome e sobrenome';
-                          }
-
-
-                          if (!RegExp(
-                            r'^[a-zA-ZÀ-ÿ\s]+$',
-                          ).hasMatch(v)) {
-
-                            return
-                                'Apenas letras';
-                          }
-
-
-                          return null;
-                        },
-                      ),
-
-
-                      const SizedBox(
-                        height: 20,
-                      ),
-
-
-                      // ==================================================
-                      // E-MAIL
-                      // ==================================================
-
-                      TextFormGlobal(
-
-                        controller:
-                            _email,
-
-                        text:
-                            'Email institucional',
-
-                        obscure:
-                            false,
-
-                        textInputType:
-                            TextInputType.emailAddress,
-
-                        prefixicon:
-                            Icons.email,
-
-
-                        validator: (v) {
-
-                          if (v == null ||
-                              v.trim().isEmpty) {
-
-                            return
-                                'Informe seu email';
-                          }
-
-
-                          if (!_emailInstitucionalValido(
-                            v,
-                          )) {
-
-                            return
-                                'Use um e-mail institucional do IFMA';
-                          }
-
-
-                          return null;
-                        },
-                      ),
-
-                      // E-MAIL JÁ CADASTRADO
-                      if (_erroEmail != null) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              color: Colors.red,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _erroEmail!,
-                                style: const TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-
-
-                      const SizedBox(
-                        height: 20,
-                      ),
-
-
-                      // ==================================================
-                      // SENHA
-                      // ==================================================
-
-                      TextFormGlobal(
-
-                        controller:
-                            _senha,
-
-                        text:
-                            'Senha',
-
-                        obscure:
-                            true,
-
-                        textInputType:
-                            TextInputType.visiblePassword,
-
-                        prefixicon:
-                            Icons.lock,
-
-
-                        validator: (v) {
-
-                          if (v == null ||
-                              v.isEmpty) {
-
-                            return
-                                'Informe sua senha';
-                          }
-
-
-                          if (v.length < 6) {
-
-                            return
-                                'Mín. 6 caracteres';
-                          }
-
-
-                          return null;
-                        },
-                      ),
-
-
-                      const SizedBox(
-                        height: 20,
-                      ),
-
-
-                      // ==================================================
-                      // CONFIRMAR SENHA
-                      // ==================================================
-
-                      TextFormGlobal(
-
-                        controller:
-                            _confirmaSenha,
-
-                        text:
-                            'Confirmar senha',
-
-                        obscure:
-                            true,
-
-                        textInputType:
-                            TextInputType.visiblePassword,
-
-                        prefixicon:
-                            Icons.lock_outline,
-
-
-                        validator: (v) {
-
-                          if (v == null ||
-                              v.isEmpty) {
-
-                            return
-                                'Confirme sua senha';
-                          }
-
-
-                          if (v !=
-                              _senha.text) {
-
-                            return
-                                'Senhas não coincidem';
-                          }
-
-
-                          return null;
-                        },
-                      ),
-
-
-                      const SizedBox(
-                        height: 25,
-                      ),
-
-
-                      // ==================================================
-                      // BOTÃO
-                      // ==================================================
-
-                      _loading
-
-                          ? const CircularProgressIndicator(
-                              color:
-                                  Color(0xFF6A5AE0),
-                            )
-
-                          : ButtonGlobal(
-
-                              text:
-                                  'Cadastrar',
-
-                              color:
-                                  const Color(
-                                0xFF6A5AE0,
-                              ),
-
-                              colortext:
-                                  Colors.white,
-
-                              icons:
-                                  Icons.person_add,
-
-                              onTap:
-                                  _cadastrar,
-                            ),
-
-
-                      const SizedBox(
-                        height: 15,
-                      ),
-
-
-                      // ==================================================
-                      // LOGIN
-                      // ==================================================
-
-                      Row(
-
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
-
-                        children: [
-
-                          const Text(
-                            'Já tem conta? ',
-                          ),
-
-
-                          GestureDetector(
-
-                            onTap: () {
-
-                              Navigator.pushReplacement(
-                                context,
-
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const LoginScreen(),
-                                ),
-                              );
-                            },
-
-
-                            child:
-                                const Text(
-
-                              'Entrar',
-
-                              style:
-                                  TextStyle(
-
-                                color:
-                                    Color(
-                                  0xFF6A5AE0,
-                                ),
-
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),

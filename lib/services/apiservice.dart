@@ -11,16 +11,7 @@ class ApiService {
   static const String baseUrl =
       'https://lanuginose-unsyllogistically-dianna.ngrok-free.dev';
 
-  // ============================================================
-  // FIREBASE AUTH
-  // ============================================================
-
-  static final FirebaseAuth _firebaseAuth =
-      FirebaseAuth.instance;
-
-  // ============================================================
-  // DOMÍNIOS PERMITIDOS
-  // ============================================================
+  static final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   static const List<String> dominiosIfmaPermitidos = [
     '@ifma.edu.br',
@@ -40,46 +31,36 @@ class ApiService {
   }
 
   // ============================================================
-  // SESSÃO
+  // SESSÃO E TOKENS
   // ============================================================
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getString('access_token');
   }
 
   static Future<String?> getRefreshToken() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getString('refresh_token');
   }
 
   static Future<void> salvarToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString('access_token', token);
   }
 
   static Future<void> salvarRefreshToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setString('refresh_token', token);
   }
 
-  // ============================================================
-  // ADMIN
-  // ============================================================
-
   static Future<void> salvarAdmin(bool admin) async {
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.setBool('is_admin', admin);
   }
 
   static Future<bool> isAdmin() async {
     final prefs = await SharedPreferences.getInstance();
-
     return prefs.getBool('is_admin') ?? false;
   }
 
@@ -107,13 +88,10 @@ class ApiService {
         return null;
       }
 
-      final payloadNormalizado =
-          base64Url.normalize(partes[1]);
+      final payloadNormalizado = base64Url.normalize(partes[1]);
 
       final payload = jsonDecode(
-        utf8.decode(
-          base64Url.decode(payloadNormalizado),
-        ),
+        utf8.decode(base64Url.decode(payloadNormalizado)),
       ) as Map<String, dynamic>;
 
       final sub = payload['sub'];
@@ -167,10 +145,7 @@ class ApiService {
   static Future<bool> tentarRenovarToken() async {
     final refresh = await getRefreshToken();
 
-    print('REFRESH TOKEN SALVO: $refresh');
-
     if (refresh == null) {
-      print('SEM REFRESH TOKEN -> logout forçado');
       return false;
     }
 
@@ -185,27 +160,21 @@ class ApiService {
         },
       );
 
-      print('REFRESH STATUS: ${response.statusCode}');
-      print('REFRESH BODY: ${response.body}');
-
       if (response.statusCode != 200) {
         return false;
       }
 
       final data = jsonDecode(response.body);
-
       final novoAccessToken = data['access_token'];
 
       if (novoAccessToken == null) {
         return false;
       }
 
-      await salvarToken(novoAccessToken);
-
+      await salvarToken(novoAccessToken.toString());
       return true;
     } catch (e) {
       print('ERRO NO REFRESH: $e');
-
       return false;
     }
   }
@@ -222,18 +191,13 @@ class ApiService {
     bool tentandoNovamente = false,
   }) async {
     final headers = await _headers(auth: auth);
+    final bodyJson = body != null ? jsonEncode(body) : null;
 
-    final bodyJson =
-        body != null ? jsonEncode(body) : null;
-
-    http.Response response;
+    late http.Response response;
 
     switch (metodo) {
       case 'GET':
-        response = await http.get(
-          url,
-          headers: headers,
-        );
+        response = await http.get(url, headers: headers);
         break;
 
       case 'POST':
@@ -253,21 +217,12 @@ class ApiService {
         break;
 
       case 'DELETE':
-        response = await http.delete(
-          url,
-          headers: headers,
-        );
+        response = await http.delete(url, headers: headers);
         break;
 
       default:
-        throw Exception(
-          'Método HTTP não suportado: $metodo',
-        );
+        throw Exception('Método HTTP não suportado: $metodo');
     }
-
-    // ==========================================================
-    // TOKEN EXPIRADO
-    // ==========================================================
 
     if (response.statusCode == 401 &&
         auth &&
@@ -282,18 +237,17 @@ class ApiService {
           auth: auth,
           tentandoNovamente: true,
         );
-      } else {
-        await limparSessao();
-
-        redirecionarParaLogin();
       }
+
+      await limparSessao();
+      redirecionarParaLogin();
     }
 
     return response;
   }
 
   // ============================================================
-  // FIREBASE - CRIAR CONTA
+  // FIREBASE - CRIAR USUÁRIO
   // ============================================================
 
   static Future<String> criarUsuarioFirebase(
@@ -319,26 +273,15 @@ class ApiService {
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
         case 'email-already-in-use':
-          throw Exception(
-            'Este e-mail já está cadastrado.',
-          );
-
+          throw Exception('Este e-mail já está cadastrado.');
         case 'invalid-email':
-          throw Exception(
-            'O e-mail informado é inválido.',
-          );
-
+          throw Exception('O e-mail informado é inválido.');
         case 'weak-password':
-          throw Exception(
-            'A senha é muito fraca.',
-          );
-
+          throw Exception('A senha é muito fraca.');
         case 'operation-not-allowed':
           throw Exception(
-            'Cadastro por e-mail e senha não está '
-            'habilitado no Firebase.',
+            'Cadastro por e-mail e senha não está habilitado no Firebase.',
           );
-
         default:
           throw Exception(
             'Erro ao criar conta no Firebase: ${e.message}',
@@ -368,22 +311,53 @@ class ApiService {
   // ============================================================
 
   static Future<bool> verificarEmailFirebase() async {
-    final user = _firebaseAuth.currentUser;
+    var user = _firebaseAuth.currentUser;
 
     if (user == null) {
       return false;
     }
 
     await user.reload();
+    user = _firebaseAuth.currentUser;
 
-    final usuarioAtualizado =
-        _firebaseAuth.currentUser;
-
-    return usuarioAtualizado?.emailVerified ?? false;
+    return user?.emailVerified ?? false;
   }
 
   // ============================================================
-  // FIREBASE - RECARREGAR
+  // FINALIZAR VERIFICAÇÃO DE CADASTRO
+  // O cadastro no FastAPI já é realizado em criarConta().
+  // Este método apenas confirma a verificação do Firebase.
+  // ============================================================
+
+  static Future<void> finalizarCadastro(String nome) async {
+    final user = _firebaseAuth.currentUser;
+
+    if (user == null) {
+      throw Exception(
+        'A sessão do Firebase expirou. Entre novamente.',
+      );
+    }
+
+    await user.reload();
+
+    final usuarioAtualizado = _firebaseAuth.currentUser;
+
+    if (usuarioAtualizado == null) {
+      throw Exception(
+        'Não foi possível localizar o usuário.',
+      );
+    }
+
+    if (!usuarioAtualizado.emailVerified) {
+      throw Exception(
+        'Seu e-mail ainda não foi verificado. '
+        'Confira sua caixa de entrada.',
+      );
+    }
+  }
+
+  // ============================================================
+  // FIREBASE - RECARREGAR USUÁRIO
   // ============================================================
 
   static Future<void> recarregarUsuarioFirebase() async {
@@ -424,12 +398,7 @@ class ApiService {
     User? firebaseUser;
 
     try {
-      final emailNormalizado =
-          email.trim().toLowerCase();
-
-      // ========================================================
-      // VALIDAR DOMÍNIO
-      // ========================================================
+      final emailNormalizado = email.trim().toLowerCase();
 
       if (!emailInstitucionalValido(emailNormalizado)) {
         throw Exception(
@@ -438,10 +407,7 @@ class ApiService {
         );
       }
 
-      // ========================================================
-      // CRIAR NO FIREBASE
-      // ========================================================
-
+      // Criar usuário no Firebase.
       final credential =
           await _firebaseAuth.createUserWithEmailAndPassword(
         email: emailNormalizado,
@@ -458,29 +424,11 @@ class ApiService {
 
       final firebaseUid = firebaseUser.uid;
 
-      print('====================================');
-      print('USUÁRIO FIREBASE CRIADO');
-      print('UID: $firebaseUid');
-      print('EMAIL: $emailNormalizado');
-      print('====================================');
-
-      // ========================================================
-      // ENVIAR VERIFICAÇÃO
-      // ========================================================
-
+      // Enviar e-mail de verificação.
       await firebaseUser.sendEmailVerification();
 
-      print('====================================');
-      print('E-MAIL DE VERIFICAÇÃO ENVIADO');
-      print('PARA: $emailNormalizado');
-      print('====================================');
-
-      // ========================================================
-      // CADASTRAR NO FASTAPI
-      // ========================================================
-
-      final url =
-          Uri.parse('$baseUrl/auth/criar_conta');
+      // Registrar usuário no FastAPI.
+      final url = Uri.parse('$baseUrl/auth/criar_conta');
 
       final response = await _enviarRequisicao(
         'POST',
@@ -492,95 +440,60 @@ class ApiService {
         },
       );
 
-      // ========================================================
-      // ERRO FASTAPI
-      // ========================================================
-
       if (response.statusCode != 200 &&
           response.statusCode != 201) {
+        String mensagem = 'Erro ao criar conta no servidor.';
+
         try {
           final data = jsonDecode(response.body);
 
-          throw Exception(
-            data['detail'] ??
-                'Erro ao criar conta no servidor.',
-          );
-        } catch (e) {
-          if (e is Exception) {
-            rethrow;
+          if (data is Map && data['detail'] != null) {
+            mensagem = data['detail'].toString();
           }
-
-          throw Exception(
-            'Erro ao criar conta: '
-            '${response.statusCode}',
-          );
+        } catch (_) {
+          mensagem = 'Erro ao criar conta: ${response.statusCode}';
         }
+
+        throw Exception(mensagem);
       }
 
-      print('====================================');
-      print('CADASTRO CONCLUÍDO');
-      print('FIREBASE UID: $firebaseUid');
-      print('FASTAPI: OK');
-      print('VERIFICAÇÃO: E-MAIL ENVIADO');
-      print('====================================');
+      print('CADASTRO REALIZADO NO FIREBASE E FASTAPI.');
 
-      // ========================================================
-      // NÃO DEIXAR LOGADO
-      // ========================================================
-
-      await _firebaseAuth.signOut();
+      // IMPORTANTE:
+      // Não encerre a sessão aqui.
+      // A tela de verificação precisa do usuário atual
+      // para consultar se o e-mail foi verificado.
     } on FirebaseAuthException catch (e) {
-      print(
-        'ERRO FIREBASE CADASTRO: '
-        '${e.code} - ${e.message}',
-      );
+      print('ERRO FIREBASE CADASTRO: ${e.code} - ${e.message}');
 
       switch (e.code) {
         case 'email-already-in-use':
-          throw Exception(
-            'Este e-mail já possui uma conta.',
-          );
-
+          throw Exception('Este e-mail já possui uma conta.');
         case 'invalid-email':
-          throw Exception(
-            'O e-mail informado é inválido.',
-          );
-
+          throw Exception('O e-mail informado é inválido.');
         case 'weak-password':
           throw Exception(
             'A senha deve possuir pelo menos 6 caracteres.',
           );
-
         case 'operation-not-allowed':
           throw Exception(
-            'O cadastro por e-mail e senha não está '
-            'habilitado no Firebase.',
+            'O cadastro por e-mail e senha não está habilitado no Firebase.',
           );
-
         default:
-          throw Exception(
-            'Erro ao criar conta: ${e.message}',
-          );
+          throw Exception('Erro ao criar conta: ${e.message}');
       }
     } catch (e) {
       print('ERRO NO CADASTRO: $e');
 
-      // ========================================================
-      // APAGAR FIREBASE SE FASTAPI FALHAR
-      // ========================================================
-
+      // Se o cadastro no servidor falhar, tenta remover
+      // o usuário recém-criado no Firebase.
       try {
         if (firebaseUser != null) {
           await firebaseUser.delete();
-
-          print(
-            'Usuário Firebase removido após falha no cadastro.',
-          );
         }
       } catch (erroDelete) {
         print(
-          'Não foi possível remover usuário Firebase: '
-          '$erroDelete',
+          'Não foi possível remover usuário Firebase: $erroDelete',
         );
       }
 
@@ -590,66 +503,51 @@ class ApiService {
 
   // ============================================================
   // AUTH - REENVIAR VERIFICAÇÃO
+  // Usa a sessão Firebase atual; não precisa de e-mail/senha.
   // ============================================================
 
-  static Future<void> reenviarEmailVerificacao(
-    String email,
-    String senha,
-  ) async {
+  static Future<void> reenviarEmailVerificacao() async {
     try {
-      final emailNormalizado =
-          email.trim().toLowerCase();
-
-      if (!emailInstitucionalValido(emailNormalizado)) {
-        throw Exception(
-          'Use um e-mail institucional.',
-        );
-      }
-
-      final credential =
-          await _firebaseAuth.signInWithEmailAndPassword(
-        email: emailNormalizado,
-        password: senha,
-      );
-
-      final user = credential.user;
+      final user = _firebaseAuth.currentUser;
 
       if (user == null) {
         throw Exception(
-          'Usuário não encontrado.',
+          'Sua sessão expirou. Faça o cadastro novamente '
+          'ou entre na sua conta para solicitar outro e-mail.',
         );
       }
 
-      await user.sendEmailVerification();
+      await user.reload();
 
-      await _firebaseAuth.signOut();
+      final usuarioAtualizado = _firebaseAuth.currentUser;
 
-      print(
-        'E-mail de verificação reenviado.',
-      );
+      if (usuarioAtualizado == null) {
+        throw Exception(
+          'Não foi possível localizar o usuário.',
+        );
+      }
+
+      if (usuarioAtualizado.emailVerified) {
+        throw Exception('Este e-mail já foi verificado.');
+      }
+
+      await usuarioAtualizado.sendEmailVerification();
+
+      print('E-MAIL DE VERIFICAÇÃO REENVIADO.');
     } on FirebaseAuthException catch (e) {
       print(
-        'ERRO AO REENVIAR VERIFICAÇÃO: '
-        '${e.code} - ${e.message}',
+        'ERRO AO REENVIAR VERIFICAÇÃO: ${e.code} - ${e.message}',
       );
 
       switch (e.code) {
-        case 'user-not-found':
+        case 'too-many-requests':
           throw Exception(
-            'Usuário não encontrado.',
+            'Muitas solicitações. Tente novamente mais tarde.',
           );
-
-        case 'wrong-password':
-        case 'invalid-credential':
-          throw Exception(
-            'E-mail ou senha incorretos.',
-          );
-
         case 'invalid-email':
-          throw Exception(
-            'E-mail inválido.',
-          );
-
+          throw Exception('E-mail inválido.');
+        case 'user-not-found':
+          throw Exception('Usuário não encontrado.');
         default:
           throw Exception(
             'Erro ao reenviar e-mail: ${e.message}',
@@ -660,12 +558,6 @@ class ApiService {
 
   // ============================================================
   // AUTH - LOGIN
-  //
-  // 1. Firebase autentica e-mail/senha
-  // 2. Firebase fornece ID Token
-  // 3. ID Token é enviado ao FastAPI
-  // 4. FastAPI valida o token
-  // 5. FastAPI devolve seus JWTs
   // ============================================================
 
   static Future<String> login(
@@ -673,22 +565,11 @@ class ApiService {
     String senha,
   ) async {
     try {
-      final emailNormalizado =
-          email.trim().toLowerCase();
-
-      // ========================================================
-      // VALIDAR DOMÍNIO
-      // ========================================================
+      final emailNormalizado = email.trim().toLowerCase();
 
       if (!emailInstitucionalValido(emailNormalizado)) {
-        throw Exception(
-          'Use um e-mail institucional.',
-        );
+        throw Exception('Use um e-mail institucional.');
       }
-
-      // ========================================================
-      // LOGIN FIREBASE
-      // ========================================================
 
       final credential =
           await _firebaseAuth.signInWithEmailAndPassword(
@@ -696,7 +577,7 @@ class ApiService {
         password: senha,
       );
 
-      User? firebaseUser = credential.user;
+      var firebaseUser = credential.user;
 
       if (firebaseUser == null) {
         throw Exception(
@@ -704,30 +585,12 @@ class ApiService {
         );
       }
 
-      print('====================================');
-      print('LOGIN FIREBASE REALIZADO');
-      print('UID: ${firebaseUser.uid}');
-      print('EMAIL: ${firebaseUser.email}');
-      print('====================================');
-
-      // ========================================================
-      // RECARREGAR USUÁRIO
-      // ========================================================
-
       await firebaseUser.reload();
-
-      firebaseUser =
-          _firebaseAuth.currentUser;
+      firebaseUser = _firebaseAuth.currentUser;
 
       if (firebaseUser == null) {
-        throw Exception(
-          'Usuário Firebase não encontrado.',
-        );
+        throw Exception('Usuário Firebase não encontrado.');
       }
-
-      // ========================================================
-      // VERIFICAR E-MAIL
-      // ========================================================
 
       if (!firebaseUser.emailVerified) {
         await _firebaseAuth.signOut();
@@ -738,15 +601,10 @@ class ApiService {
         );
       }
 
-      // ========================================================
-      // PEGAR ID TOKEN DO FIREBASE
-      // ========================================================
-
       final firebaseIdToken =
           await firebaseUser.getIdToken(true);
 
-      if (firebaseIdToken == null ||
-          firebaseIdToken.isEmpty) {
+      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
         await _firebaseAuth.signOut();
 
         throw Exception(
@@ -754,17 +612,7 @@ class ApiService {
         );
       }
 
-      print('====================================');
-      print('FIREBASE ID TOKEN OBTIDO');
-      print('TOKEN PRESENTE: SIM');
-      print('====================================');
-
-      // ========================================================
-      // ENVIAR TOKEN PARA FASTAPI
-      // ========================================================
-
-      final url =
-          Uri.parse('$baseUrl/auth/login');
+      final url = Uri.parse('$baseUrl/auth/login');
 
       final response = await _enviarRequisicao(
         'POST',
@@ -774,230 +622,80 @@ class ApiService {
         },
       );
 
-      print('====================================');
-      print('RESPOSTA FASTAPI LOGIN');
-      print('STATUS: ${response.statusCode}');
-      print('BODY: ${response.body}');
-      print('====================================');
-
-      // ========================================================
-      // ERRO FASTAPI
-      // ========================================================
-
       if (response.statusCode != 200) {
         await _firebaseAuth.signOut();
 
+        String mensagem = 'Login falhou: ${response.statusCode}';
+
         try {
-          final data =
-              jsonDecode(response.body);
+          final data = jsonDecode(response.body);
 
-          throw Exception(
-            data['detail'] ??
-                'Login falhou: '
-                    '${response.statusCode}',
-          );
-        } catch (e) {
-          if (e is Exception) {
-            rethrow;
+          if (data is Map && data['detail'] != null) {
+            mensagem = data['detail'].toString();
           }
+        } catch (_) {}
 
-          throw Exception(
-            'Login falhou: '
-            '${response.statusCode}',
-          );
-        }
+        throw Exception(mensagem);
       }
 
-      // ========================================================
-      // LER RESPOSTA
-      // ========================================================
+      final data = jsonDecode(response.body);
 
-      final data =
-          jsonDecode(response.body);
-
-      final accessToken =
-          data['access_token'];
-
-      final refreshToken =
-          data['refresh_token'];
-
-      final admin =
-          data['admin'] ?? false;
+      final accessToken = data['access_token'];
+      final refreshToken = data['refresh_token'];
+      final admin = data['admin'] ?? false;
 
       if (accessToken == null) {
         await _firebaseAuth.signOut();
 
-        throw Exception(
-          'Token de acesso não recebido.',
-        );
+        throw Exception('Token de acesso não recebido.');
       }
 
-      // ========================================================
-      // SALVAR TOKENS FASTAPI
-      // ========================================================
-
-      await salvarToken(
-        accessToken,
-      );
+      await salvarToken(accessToken.toString());
 
       if (refreshToken != null) {
-        await salvarRefreshToken(
-          refreshToken,
-        );
+        await salvarRefreshToken(refreshToken.toString());
       }
 
-      await salvarAdmin(
-        admin == true,
-      );
+      await salvarAdmin(admin == true);
 
-      print('====================================');
-      print('LOGIN COMPLETO');
-      print('FIREBASE UID: ${firebaseUser.uid}');
-      print(
-        'EMAIL VERIFICADO: '
-        '${firebaseUser.emailVerified}',
-      );
-      print('ADMIN: ${admin == true}');
-      print('====================================');
-
-      // ========================================================
-      // SALVAR TOKEN FCM
-      // ========================================================
-
+      // Salvar token de notificações push.
       try {
         final fcmToken =
             await FirebaseMessaging.instance.getToken();
 
         if (fcmToken != null) {
-          await salvarFCMToken(
-            fcmToken,
-          );
-
-          print(
-            'FCM TOKEN VINCULADO AO USUÁRIO COM SUCESSO!',
-          );
+          await salvarFCMToken(fcmToken);
         }
       } catch (e) {
-        print(
-          'ERRO AO VINCULAR FCM TOKEN: $e',
-        );
+        print('ERRO AO VINCULAR FCM TOKEN: $e');
       }
 
-      return accessToken;
+      return accessToken.toString();
     } on FirebaseAuthException catch (e) {
-      print(
-        'ERRO FIREBASE LOGIN: '
-        '${e.code} - ${e.message}',
-      );
+      print('ERRO FIREBASE LOGIN: ${e.code} - ${e.message}');
 
       switch (e.code) {
         case 'user-not-found':
-          throw Exception(
-            'Usuário não encontrado.',
-          );
-
+          throw Exception('Usuário não encontrado.');
         case 'wrong-password':
         case 'invalid-credential':
-          throw Exception(
-            'E-mail ou senha incorretos.',
-          );
-
+          throw Exception('E-mail ou senha incorretos.');
         case 'invalid-email':
-          throw Exception(
-            'E-mail inválido.',
-          );
-
+          throw Exception('E-mail inválido.');
         case 'user-disabled':
-          throw Exception(
-            'Esta conta foi desativada.',
-          );
-
+          throw Exception('Esta conta foi desativada.');
         case 'too-many-requests':
           throw Exception(
-            'Muitas tentativas. '
-            'Tente novamente mais tarde.',
+            'Muitas tentativas. Tente novamente mais tarde.',
           );
-
         default:
-          throw Exception(
-            'Erro ao fazer login: ${e.message}',
-          );
+          throw Exception('Erro ao fazer login: ${e.message}');
       }
     } catch (e) {
       print('ERRO NO LOGIN: $e');
       rethrow;
     }
   }
-
-  // ============================================================
-  // AUTH - RECUPERAR SENHA
-  // ============================================================
-
-  static Future<void> recuperarSenha(
-    String email,
-  ) async {
-    try {
-      final emailNormalizado =
-          email.trim().toLowerCase();
-
-      if (emailNormalizado.isEmpty) {
-        throw Exception(
-          'Informe seu e-mail.',
-        );
-      }
-
-      if (!emailInstitucionalValido(
-        emailNormalizado,
-      )) {
-        throw Exception(
-          'Use um e-mail institucional.',
-        );
-      }
-
-      await _firebaseAuth.sendPasswordResetEmail(
-        email: emailNormalizado,
-      );
-
-      print('====================================');
-      print('RECUPERAÇÃO DE SENHA');
-      print('E-MAIL: $emailNormalizado');
-      print('LINK ENVIADO PELO FIREBASE');
-      print('====================================');
-    } on FirebaseAuthException catch (e) {
-      print(
-        'ERRO RECUPERAÇÃO: '
-        '${e.code} - ${e.message}',
-      );
-
-      switch (e.code) {
-        case 'invalid-email':
-          throw Exception(
-            'E-mail inválido.',
-          );
-
-        case 'user-not-found':
-          throw Exception(
-            'Não encontramos uma conta com este e-mail.',
-          );
-
-        case 'too-many-requests':
-          throw Exception(
-            'Muitas solicitações. '
-            'Tente novamente mais tarde.',
-          );
-
-        default:
-          throw Exception(
-            'Não foi possível enviar o e-mail de recuperação: '
-            '${e.message}',
-          );
-      }
-    }
-  }
-
-  // ============================================================
-  // AUTH - LOGIN FORM SWAGGER
-  // ============================================================
 
   static Future<String> loginForm(
     String email,
@@ -1007,19 +705,53 @@ class ApiService {
   }
 
   // ============================================================
+  // AUTH - RECUPERAR SENHA
+  // ============================================================
+
+  static Future<void> recuperarSenha(String email) async {
+    try {
+      final emailNormalizado = email.trim().toLowerCase();
+
+      if (emailNormalizado.isEmpty) {
+        throw Exception('Informe seu e-mail.');
+      }
+
+      if (!emailInstitucionalValido(emailNormalizado)) {
+        throw Exception('Use um e-mail institucional.');
+      }
+
+      await _firebaseAuth.sendPasswordResetEmail(
+        email: emailNormalizado,
+      );
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'invalid-email':
+          throw Exception('E-mail inválido.');
+        case 'user-not-found':
+          throw Exception(
+            'Não encontramos uma conta com este e-mail.',
+          );
+        case 'too-many-requests':
+          throw Exception(
+            'Muitas solicitações. Tente novamente mais tarde.',
+          );
+        default:
+          throw Exception(
+            'Não foi possível enviar o e-mail de recuperação: ${e.message}',
+          );
+      }
+    }
+  }
+
+  // ============================================================
   // AUTH - LOGOUT
   // ============================================================
 
   static Future<void> logout() async {
-    final url =
-        Uri.parse('$baseUrl/config/logout');
+    final url = Uri.parse('$baseUrl/config/logout');
 
     try {
-      await _enviarRequisicao(
-        'POST',
-        url,
-        auth: true,
-      );
+      await _enviarRequisicao('POST', url, auth: true);
     } catch (_) {}
 
     try {
@@ -1051,21 +783,14 @@ class ApiService {
       query['search'] = search.trim();
     }
 
-    final url = Uri.parse(
-      '$baseUrl/mercado/acoes',
-    ).replace(
+    final url = Uri.parse('$baseUrl/mercado/acoes').replace(
       queryParameters: query,
     );
 
-    final response =
-        await _enviarRequisicao(
-      'GET',
-      url,
-    );
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
       if (data is Map<String, dynamic>) {
         return data;
@@ -1077,8 +802,7 @@ class ApiService {
     }
 
     throw Exception(
-      'Erro ao carregar ações: '
-      '${response.statusCode}',
+      'Erro ao carregar ações: ${response.statusCode}',
     );
   }
 
@@ -1104,21 +828,14 @@ class ApiService {
       query['search'] = search.trim();
     }
 
-    final url = Uri.parse(
-      '$baseUrl/mercado/fundos',
-    ).replace(
+    final url = Uri.parse('$baseUrl/mercado/fundos').replace(
       queryParameters: query,
     );
 
-    final response =
-        await _enviarRequisicao(
-      'GET',
-      url,
-    );
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
       if (data is Map<String, dynamic>) {
         return data;
@@ -1130,8 +847,7 @@ class ApiService {
     }
 
     throw Exception(
-      'Erro ao carregar fundos: '
-      '${response.statusCode}',
+      'Erro ao carregar fundos: ${response.statusCode}',
     );
   }
 
@@ -1144,41 +860,20 @@ class ApiService {
     String tipo = 'todos',
     int limit = 20,
   }) async {
-    final query =
-        Uri.encodeQueryComponent(
-      busca.trim(),
-    );
+    final query = Uri.encodeQueryComponent(busca.trim());
 
     final url = Uri.parse(
-      '$baseUrl/mercado/buscar'
-      '?q=$query'
-      '&tipo=$tipo'
-      '&limit=$limit',
+      '$baseUrl/mercado/buscar?q=$query&tipo=$tipo&limit=$limit',
     );
 
-    final response =
-        await _enviarRequisicao(
-      'GET',
-      url,
-    );
-
-    print('====================================');
-    print('PESQUISA DE ATIVOS');
-    print('BUSCA: $busca');
-    print('STATUS: ${response.statusCode}');
-    print('BODY: ${response.body}');
-    print('====================================');
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      if (data is Map<String, dynamic>) {
-        final ativos = data['ativos'];
-
-        if (ativos is List) {
-          return ativos;
-        }
+      if (data is Map<String, dynamic> &&
+          data['ativos'] is List) {
+        return data['ativos'] as List<dynamic>;
       }
 
       throw Exception(
@@ -1186,69 +881,50 @@ class ApiService {
       );
     }
 
+    String mensagem =
+        'Erro ao pesquisar ativos: ${response.statusCode}';
+
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao pesquisar ativos.',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao pesquisar ativos: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
   // MERCADO - ÍNDICES
   // ============================================================
 
-  static Future<Map<String, dynamic>>
-      buscarIndices() async {
-    final url =
-        Uri.parse('$baseUrl/mercado/indices');
-
-    final response =
-        await _enviarRequisicao(
-      'GET',
-      url,
-    );
+  static Future<Map<String, dynamic>> buscarIndices() async {
+    final url = Uri.parse('$baseUrl/mercado/indices');
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return Map<String, dynamic>.from(
+        jsonDecode(response.body),
+      );
     }
 
-    throw Exception(
-      'Erro: ${response.statusCode}',
-    );
+    throw Exception('Erro: ${response.statusCode}');
   }
 
   // ============================================================
   // MERCADO - GRÁFICO
   // ============================================================
 
-  static Future<List<Map<String, dynamic>>>
-      buscarGrafico(
+  static Future<List<Map<String, dynamic>>> buscarGrafico(
     String simbolo,
     String periodo,
   ) async {
     final url = Uri.parse(
-      '$baseUrl/mercado/grafico/'
-      '$simbolo?periodo=$periodo',
+      '$baseUrl/mercado/grafico/$simbolo?periodo=$periodo',
     );
 
-    final response =
-        await _enviarRequisicao(
-      'GET',
-      url,
-    );
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
       return List<Map<String, dynamic>>.from(
@@ -1256,22 +932,16 @@ class ApiService {
       );
     }
 
-    throw Exception(
-      'Erro: ${response.statusCode}',
-    );
+    throw Exception('Erro: ${response.statusCode}');
   }
 
   // ============================================================
   // FAVORITOS - AÇÕES
   // ============================================================
 
-  static Future<List<dynamic>>
-      listarFavoritosAcoes() async {
-    final url =
-        Uri.parse('$baseUrl/favoritos/acoes');
-
-    final response =
-        await _enviarRequisicao(
+  static Future<List<dynamic>> listarFavoritosAcoes() async {
+    final url = Uri.parse('$baseUrl/favoritos/acoes');
+    final response = await _enviarRequisicao(
       'GET',
       url,
       auth: true,
@@ -1281,19 +951,15 @@ class ApiService {
       return jsonDecode(response.body);
     }
 
-    throw Exception(
-      'Erro: ${response.statusCode}',
-    );
+    throw Exception('Erro: ${response.statusCode}');
   }
 
   static Future<void> adicionarFavoritoAcao(
     String codigo,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/favoritos/acoes');
+    final url = Uri.parse('$baseUrl/favoritos/acoes');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'POST',
       url,
       body: {'codigo': codigo},
@@ -1303,8 +969,7 @@ class ApiService {
     if (response.statusCode != 200 &&
         response.statusCode != 201) {
       throw Exception(
-        'Erro ao favoritar: '
-        '${response.statusCode}',
+        'Erro ao favoritar: ${response.statusCode}',
       );
     }
   }
@@ -1312,12 +977,9 @@ class ApiService {
   static Future<void> removerFavoritoAcao(
     String codigo,
   ) async {
-    final url = Uri.parse(
-      '$baseUrl/favoritos/acoes/$codigo',
-    );
+    final url = Uri.parse('$baseUrl/favoritos/acoes/$codigo');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'DELETE',
       url,
       auth: true,
@@ -1325,8 +987,7 @@ class ApiService {
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Erro ao remover favorito: '
-        '${response.statusCode}',
+        'Erro ao remover favorito: ${response.statusCode}',
       );
     }
   }
@@ -1335,13 +996,10 @@ class ApiService {
   // FAVORITOS - FUNDOS
   // ============================================================
 
-  static Future<List<dynamic>>
-      listarFavoritosFundos() async {
-    final url =
-        Uri.parse('$baseUrl/favoritos/fundos');
+  static Future<List<dynamic>> listarFavoritosFundos() async {
+    final url = Uri.parse('$baseUrl/favoritos/fundos');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'GET',
       url,
       auth: true,
@@ -1351,19 +1009,15 @@ class ApiService {
       return jsonDecode(response.body);
     }
 
-    throw Exception(
-      'Erro: ${response.statusCode}',
-    );
+    throw Exception('Erro: ${response.statusCode}');
   }
 
   static Future<void> adicionarFavoritoFundo(
     String codigo,
   ) async {
-    final url =
-        Uri.parse('$baseUrl/favoritos/fundos');
+    final url = Uri.parse('$baseUrl/favoritos/fundos');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'POST',
       url,
       body: {'codigo': codigo},
@@ -1373,8 +1027,7 @@ class ApiService {
     if (response.statusCode != 200 &&
         response.statusCode != 201) {
       throw Exception(
-        'Erro ao favoritar fundo: '
-        '${response.statusCode}',
+        'Erro ao favoritar fundo: ${response.statusCode}',
       );
     }
   }
@@ -1382,12 +1035,9 @@ class ApiService {
   static Future<void> removerFavoritoFundo(
     String codigo,
   ) async {
-    final url = Uri.parse(
-      '$baseUrl/favoritos/fundos/$codigo',
-    );
+    final url = Uri.parse('$baseUrl/favoritos/fundos/$codigo');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'DELETE',
       url,
       auth: true,
@@ -1395,8 +1045,7 @@ class ApiService {
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Erro ao remover fundo favorito: '
-        '${response.statusCode}',
+        'Erro ao remover fundo favorito: ${response.statusCode}',
       );
     }
   }
@@ -1405,22 +1054,19 @@ class ApiService {
   // CARTEIRA - RESUMO
   // ============================================================
 
-  static Future<List<dynamic>>
-      buscarCarteira() async {
+  static Future<List<dynamic>> buscarCarteira() async {
     final url = Uri.parse(
       '$baseUrl/carteira/simular/agrupado',
     );
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'GET',
       url,
       auth: true,
     );
 
     if (response.statusCode == 200) {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
       if (data is List) {
         return data;
@@ -1431,38 +1077,29 @@ class ApiService {
       );
     }
 
+    String mensagem = 'Erro ao carregar carteira.';
+
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao carregar carteira.',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao carregar carteira: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
   // CARTEIRA - ATUALIZADA
   // ============================================================
 
-  static Future<List<dynamic>>
-      buscarCarteiraAtualizada() async {
+  static Future<List<dynamic>> buscarCarteiraAtualizada() async {
     final url = Uri.parse(
       '$baseUrl/carteira/simular/atualizado',
     );
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'GET',
       url,
       auth: true,
@@ -1473,8 +1110,7 @@ class ApiService {
     }
 
     throw Exception(
-      'Erro ao carregar carteira: '
-      '${response.statusCode}',
+      'Erro ao carregar carteira: ${response.statusCode}',
     );
   }
 
@@ -1486,12 +1122,9 @@ class ApiService {
     String codigo,
     double quantidade,
   ) async {
-    final url = Uri.parse(
-      '$baseUrl/carteira/simular',
-    );
+    final url = Uri.parse('$baseUrl/carteira/simular');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'POST',
       url,
       body: {
@@ -1503,24 +1136,17 @@ class ApiService {
 
     if (response.statusCode != 200 &&
         response.statusCode != 201) {
+      String mensagem = 'Erro ao adicionar ativo.';
+
       try {
-        final data =
-            jsonDecode(response.body);
+        final data = jsonDecode(response.body);
 
-        throw Exception(
-          data['detail'] ??
-              'Erro ao adicionar ativo',
-        );
-      } catch (e) {
-        if (e is Exception) {
-          rethrow;
+        if (data is Map && data['detail'] != null) {
+          mensagem = data['detail'].toString();
         }
+      } catch (_) {}
 
-        throw Exception(
-          'Erro ao adicionar ativo: '
-          '${response.statusCode}',
-        );
-      }
+      throw Exception(mensagem);
     }
   }
 
@@ -1536,20 +1162,16 @@ class ApiService {
       '$baseUrl/carteira/simular/$itemId',
     );
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'PUT',
       url,
-      body: {
-        'quantidade': quantidade,
-      },
+      body: {'quantidade': quantidade},
       auth: true,
     );
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Erro ao atualizar ativo: '
-        '${response.statusCode}',
+        'Erro ao atualizar ativo: ${response.statusCode}',
       );
     }
   }
@@ -1565,8 +1187,7 @@ class ApiService {
       '$baseUrl/carteira/simular/$itemId',
     );
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'DELETE',
       url,
       auth: true,
@@ -1574,8 +1195,7 @@ class ApiService {
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Erro ao remover ativo: '
-        '${response.statusCode}',
+        'Erro ao remover ativo: ${response.statusCode}',
       );
     }
   }
@@ -1584,41 +1204,27 @@ class ApiService {
   // EDUCAÇÃO - VÍDEOS
   // ============================================================
 
-  static Future<List<dynamic>>
-      listarVideos() async {
-    final url =
-        Uri.parse('$baseUrl/educacao/videos');
-
-    final response =
-        await _enviarRequisicao(
-      'GET',
-      url,
-    );
+  static Future<List<dynamic>> listarVideos() async {
+    final url = Uri.parse('$baseUrl/educacao/videos');
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
 
     throw Exception(
-      'Erro ao carregar vídeos: '
-      '${response.statusCode}',
+      'Erro ao carregar vídeos: ${response.statusCode}',
     );
   }
 
-  static Future<List<dynamic>>
-      listarVideosPorTema(
+  static Future<List<dynamic>> listarVideosPorTema(
     String tema,
   ) async {
-    final url =
-        Uri.parse(
+    final url = Uri.parse(
       '$baseUrl/educacao/videos/tema/$tema',
     );
 
-    final response =
-        await _enviarRequisicao(
-      'GET',
-      url,
-    );
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -1633,30 +1239,20 @@ class ApiService {
   // EDUCAÇÃO - MATERIAIS
   // ============================================================
 
-  static Future<List<dynamic>>
-      listarMateriais() async {
-    final url =
-        Uri.parse('$baseUrl/educacao/materiais');
-
-    final response =
-        await _enviarRequisicao(
-      'GET',
-      url,
-    );
+  static Future<List<dynamic>> listarMateriais() async {
+    final url = Uri.parse('$baseUrl/educacao/materiais');
+    final response = await _enviarRequisicao('GET', url);
 
     if (response.statusCode == 200) {
-      final dados =
-          jsonDecode(response.body);
+      final dados = jsonDecode(response.body);
 
       if (dados is! List) {
         throw Exception(
-          'Formato inválido retornado '
-          'pela API de materiais.',
+          'Formato inválido retornado pela API de materiais.',
         );
       }
 
-      final materiais =
-          List<dynamic>.from(dados);
+      final materiais = List<dynamic>.from(dados);
 
       for (final material in materiais) {
         if (material is! Map) {
@@ -1669,29 +1265,19 @@ class ApiService {
           continue;
         }
 
-        final caminhoString =
-            caminho.toString().trim();
+        final caminhoString = caminho.toString().trim();
 
         if (caminhoString.isEmpty) {
           continue;
         }
 
-        if (caminhoString.startsWith(
-              'http://',
-            ) ||
-            caminhoString.startsWith(
-              'https://',
-            )) {
-          material['url'] =
-              caminhoString;
-        } else if (caminhoString.startsWith(
-          '/',
-        )) {
-          material['url'] =
-              '$baseUrl$caminhoString';
+        if (caminhoString.startsWith('http://') ||
+            caminhoString.startsWith('https://')) {
+          material['url'] = caminhoString;
+        } else if (caminhoString.startsWith('/')) {
+          material['url'] = '$baseUrl$caminhoString';
         } else {
-          material['url'] =
-              '$baseUrl/$caminhoString';
+          material['url'] = '$baseUrl/$caminhoString';
         }
       }
 
@@ -1699,8 +1285,7 @@ class ApiService {
     }
 
     throw Exception(
-      'Erro ao carregar materiais: '
-      '${response.statusCode}',
+      'Erro ao carregar materiais: ${response.statusCode}',
     );
   }
 
@@ -1714,43 +1299,29 @@ class ApiService {
     String? tema,
     required String caminhoArquivo,
   }) async {
-    final url =
-        Uri.parse('$baseUrl/educacao/materiais');
-
+    final url = Uri.parse('$baseUrl/educacao/materiais');
     final token = await getToken();
 
-    final request =
-        http.MultipartRequest(
-      'POST',
-      url,
-    );
+    final request = http.MultipartRequest('POST', url);
 
     if (token != null) {
-      request.headers['Authorization'] =
-          'Bearer $token';
+      request.headers['Authorization'] = 'Bearer $token';
     }
 
     request.fields['titulo'] = titulo;
 
-    if (descricao != null &&
-        descricao.trim().isNotEmpty) {
-      request.fields['descricao'] =
-          descricao.trim();
+    if (descricao != null && descricao.trim().isNotEmpty) {
+      request.fields['descricao'] = descricao.trim();
     }
 
-    if (tema != null &&
-        tema.trim().isNotEmpty) {
-      request.fields['tema'] =
-          tema.trim();
+    if (tema != null && tema.trim().isNotEmpty) {
+      request.fields['tema'] = tema.trim();
     }
 
-    final arquivo =
-        File(caminhoArquivo);
+    final arquivo = File(caminhoArquivo);
 
     if (!await arquivo.exists()) {
-      throw Exception(
-        'Arquivo não encontrado.',
-      );
+      throw Exception('Arquivo não encontrado.');
     }
 
     request.files.add(
@@ -1760,11 +1331,8 @@ class ApiService {
       ),
     );
 
-    final streamedResponse =
-        await request.send();
-
-    final response =
-        await http.Response.fromStream(
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(
       streamedResponse,
     );
 
@@ -1774,8 +1342,7 @@ class ApiService {
     }
 
     if (response.statusCode == 401) {
-      final renovou =
-          await tentarRenovarToken();
+      final renovou = await tentarRenovarToken();
 
       if (renovou) {
         return adicionarMaterial(
@@ -1787,56 +1354,39 @@ class ApiService {
       }
 
       await limparSessao();
-
       redirecionarParaLogin();
-
-      throw Exception(
-        'Sessão expirada.',
-      );
+      throw Exception('Sessão expirada.');
     }
 
     if (response.statusCode == 403) {
       throw Exception(
-        'Acesso negado. '
-        'Apenas administradores podem '
-        'adicionar materiais.',
+        'Acesso negado. Apenas administradores podem adicionar materiais.',
       );
     }
+
+    String mensagem = 'Erro ao adicionar material.';
 
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao adicionar material.',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao adicionar material: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
   // ADMIN - EXCLUIR MATERIAL
   // ============================================================
 
-  static Future<void> excluirMaterial(
-    int materialId,
-  ) async {
+  static Future<void> excluirMaterial(int materialId) async {
     final url = Uri.parse(
-      '$baseUrl/educacao/materiais/'
-      '$materialId',
+      '$baseUrl/educacao/materiais/$materialId',
     );
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'DELETE',
       url,
       auth: true,
@@ -1848,49 +1398,35 @@ class ApiService {
 
     if (response.statusCode == 403) {
       throw Exception(
-        'Acesso negado. '
-        'Apenas administradores podem '
-        'excluir materiais.',
+        'Acesso negado. Apenas administradores podem excluir materiais.',
       );
     }
 
     if (response.statusCode == 404) {
-      throw Exception(
-        'Material não encontrado.',
-      );
+      throw Exception('Material não encontrado.');
     }
+
+    String mensagem = 'Erro ao excluir material.';
 
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao excluir material.',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao excluir material: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
-  // ADMIN - VÍDEOS
+  // ADMIN - LISTAR VÍDEOS
   // ============================================================
 
-  static Future<List<dynamic>>
-      listarVideosAdmin() async {
-    final url =
-        Uri.parse('$baseUrl/admin/videos/');
+  static Future<List<dynamic>> listarVideosAdmin() async {
+    final url = Uri.parse('$baseUrl/admin/videos/');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'GET',
       url,
       auth: true,
@@ -1902,15 +1438,12 @@ class ApiService {
 
     if (response.statusCode == 403) {
       throw Exception(
-        'Acesso negado. '
-        'Apenas administradores podem '
-        'acessar esta área.',
+        'Acesso negado. Apenas administradores podem acessar esta área.',
       );
     }
 
     throw Exception(
-      'Erro ao carregar vídeos: '
-      '${response.statusCode}',
+      'Erro ao carregar vídeos: ${response.statusCode}',
     );
   }
 
@@ -1925,11 +1458,9 @@ class ApiService {
     String? tema,
     String? duracao,
   }) async {
-    final endpoint =
-        Uri.parse('$baseUrl/admin/videos/');
+    final endpoint = Uri.parse('$baseUrl/admin/videos/');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'POST',
       endpoint,
       body: {
@@ -1949,30 +1480,21 @@ class ApiService {
 
     if (response.statusCode == 403) {
       throw Exception(
-        'Acesso negado. '
-        'Apenas administradores podem '
-        'adicionar vídeos.',
+        'Acesso negado. Apenas administradores podem adicionar vídeos.',
       );
     }
+
+    String mensagem = 'Erro ao adicionar vídeo.';
 
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao adicionar vídeo.',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao adicionar vídeo: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
@@ -1987,35 +1509,19 @@ class ApiService {
     String? tema,
     String? duracao,
   }) async {
-    final endpoint =
-        Uri.parse(
+    final endpoint = Uri.parse(
       '$baseUrl/admin/videos/$videoId',
     );
 
     final Map<String, dynamic> dados = {};
 
-    if (titulo != null) {
-      dados['titulo'] = titulo;
-    }
+    if (titulo != null) dados['titulo'] = titulo;
+    if (descricao != null) dados['descricao'] = descricao;
+    if (url != null) dados['url'] = url;
+    if (tema != null) dados['tema'] = tema;
+    if (duracao != null) dados['duracao'] = duracao;
 
-    if (descricao != null) {
-      dados['descricao'] = descricao;
-    }
-
-    if (url != null) {
-      dados['url'] = url;
-    }
-
-    if (tema != null) {
-      dados['tema'] = tema;
-    }
-
-    if (duracao != null) {
-      dados['duracao'] = duracao;
-    }
-
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'PUT',
       endpoint,
       body: dados,
@@ -2028,46 +1534,33 @@ class ApiService {
 
     if (response.statusCode == 403) {
       throw Exception(
-        'Acesso negado. '
-        'Apenas administradores podem '
-        'editar vídeos.',
+        'Acesso negado. Apenas administradores podem editar vídeos.',
       );
     }
+
+    String mensagem = 'Erro ao editar vídeo.';
 
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao editar vídeo.',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao editar vídeo: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
   // ADMIN - EXCLUIR VÍDEO
   // ============================================================
 
-  static Future<void> excluirVideoAdmin(
-    int videoId,
-  ) async {
-    final endpoint =
-        Uri.parse(
+  static Future<void> excluirVideoAdmin(int videoId) async {
+    final endpoint = Uri.parse(
       '$baseUrl/admin/videos/$videoId',
     );
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'DELETE',
       endpoint,
       auth: true,
@@ -2079,56 +1572,40 @@ class ApiService {
 
     if (response.statusCode == 403) {
       throw Exception(
-        'Acesso negado. '
-        'Apenas administradores podem '
-        'excluir vídeos.',
+        'Acesso negado. Apenas administradores podem excluir vídeos.',
       );
     }
+
+    String mensagem = 'Erro ao excluir vídeo.';
 
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao excluir vídeo.',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao excluir vídeo: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
   // USUÁRIO - FCM TOKEN
   // ============================================================
 
-  static Future<void> salvarFCMToken(
-    String fcmToken,
-  ) async {
-    final url =
-        Uri.parse('$baseUrl/usuario/fcm-token');
+  static Future<void> salvarFCMToken(String fcmToken) async {
+    final url = Uri.parse('$baseUrl/usuario/fcm-token');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'PUT',
       url,
-      body: {
-        'fcm_token': fcmToken,
-      },
+      body: {'fcm_token': fcmToken},
       auth: true,
     );
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Erro ao salvar token FCM: '
-        '${response.statusCode}',
+        'Erro ao salvar token FCM: ${response.statusCode}',
       );
     }
   }
@@ -2137,46 +1614,31 @@ class ApiService {
   // USUÁRIO - PERFIL
   // ============================================================
 
-  static Future<Map<String, dynamic>>
-      buscarPerfil() async {
-    final url =
-        Uri.parse('$baseUrl/usuario/me');
+  static Future<Map<String, dynamic>> buscarPerfil() async {
+    final url = Uri.parse('$baseUrl/usuario/me');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'GET',
       url,
       auth: true,
     );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return Map<String, dynamic>.from(
+        jsonDecode(response.body),
+      );
     }
 
-    throw Exception(
-      'Erro: ${response.statusCode}',
-    );
+    throw Exception('Erro: ${response.statusCode}');
   }
 
-  // ============================================================
-  // USUÁRIO - ATUALIZAR PERFIL (NOME)
-  // (trazido da versão sem Firebase)
-  // ============================================================
+  static Future<void> atualizarPerfil(String nome) async {
+    final url = Uri.parse('$baseUrl/usuario/me');
 
-  static Future<void> atualizarPerfil(
-    String nome,
-  ) async {
-    final url = Uri.parse(
-      '$baseUrl/usuario/me',
-    );
-
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'PUT',
       url,
-      body: {
-        'nome': nome,
-      },
+      body: {'nome': nome},
       auth: true,
     );
 
@@ -2184,72 +1646,51 @@ class ApiService {
       return;
     }
 
+    String mensagem = 'Erro ao atualizar perfil.';
+
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao atualizar perfil',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao atualizar perfil: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
   // USUÁRIO - AVATAR
   // ============================================================
 
-  static Future<void> atualizarAvatar(
-    String avatar,
-  ) async {
-    final url =
-        Uri.parse('$baseUrl/usuario/avatar');
+  static Future<void> atualizarAvatar(String avatar) async {
+    final url = Uri.parse('$baseUrl/usuario/avatar');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'PUT',
       url,
-      body: {
-        'avatar': avatar,
-      },
+      body: {'avatar': avatar},
       auth: true,
     );
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Erro ao atualizar avatar: '
-        '${response.statusCode}',
+        'Erro ao atualizar avatar: ${response.statusCode}',
       );
     }
   }
 
   // ============================================================
-  // USUÁRIO - SENHA
-  // (trazido da versão sem Firebase — atenção: se a senha é
-  // gerenciada pelo Firebase, avalie se este endpoint ainda
-  // faz sentido no backend, ou se a troca de senha deveria
-  // usar _firebaseAuth.currentUser?.updatePassword(...))
+  // USUÁRIO - ALTERAR SENHA
   // ============================================================
 
   static Future<void> alterarSenha(
     String senhaAtual,
     String novaSenha,
   ) async {
-    final url = Uri.parse(
-      '$baseUrl/usuario/senha',
-    );
+    final url = Uri.parse('$baseUrl/usuario/senha');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'PUT',
       url,
       body: {
@@ -2263,24 +1704,17 @@ class ApiService {
       return;
     }
 
+    String mensagem = 'Erro ao alterar senha.';
+
     try {
-      final data =
-          jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      throw Exception(
-        data['detail'] ??
-            'Erro ao alterar senha',
-      );
-    } catch (e) {
-      if (e is Exception) {
-        rethrow;
+      if (data is Map && data['detail'] != null) {
+        mensagem = data['detail'].toString();
       }
+    } catch (_) {}
 
-      throw Exception(
-        'Erro ao alterar senha: '
-        '${response.statusCode}',
-      );
-    }
+    throw Exception(mensagem);
   }
 
   // ============================================================
@@ -2292,11 +1726,9 @@ class ApiService {
     String mensagem, {
     String tipo = 'SISTEMA',
   }) async {
-    final url =
-        Uri.parse('$baseUrl/notificacoes/enviar');
+    final url = Uri.parse('$baseUrl/notificacoes/enviar');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'POST',
       url,
       body: {
@@ -2308,24 +1740,17 @@ class ApiService {
     );
 
     if (response.statusCode != 200) {
+      String erro = 'Erro ao enviar notificação.';
+
       try {
-        final data =
-            jsonDecode(response.body);
+        final data = jsonDecode(response.body);
 
-        throw Exception(
-          data['detail'] ??
-              'Erro ao enviar notificação',
-        );
-      } catch (e) {
-        if (e is Exception) {
-          rethrow;
+        if (data is Map && data['detail'] != null) {
+          erro = data['detail'].toString();
         }
+      } catch (_) {}
 
-        throw Exception(
-          'Erro ao enviar notificação: '
-          '${response.statusCode}',
-        );
-      }
+      throw Exception(erro);
     }
   }
 
@@ -2333,13 +1758,10 @@ class ApiService {
   // NOTIFICAÇÕES - LISTAR
   // ============================================================
 
-  static Future<List<dynamic>>
-      listarNotificacoes() async {
-    final url =
-        Uri.parse('$baseUrl/notificacoes');
+  static Future<List<dynamic>> listarNotificacoes() async {
+    final url = Uri.parse('$baseUrl/notificacoes');
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'GET',
       url,
       auth: true,
@@ -2350,8 +1772,7 @@ class ApiService {
     }
 
     throw Exception(
-      'Erro ao carregar notificações: '
-      '${response.statusCode}',
+      'Erro ao carregar notificações: ${response.statusCode}',
     );
   }
 
@@ -2359,30 +1780,24 @@ class ApiService {
   // NOTIFICAÇÕES - CONTAR NÃO LIDAS
   // ============================================================
 
-  static Future<int>
-      contarNotificacoesNaoLidas() async {
-    final url =
-        Uri.parse(
+  static Future<int> contarNotificacoesNaoLidas() async {
+    final url = Uri.parse(
       '$baseUrl/notificacoes/nao-lidas',
     );
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'GET',
       url,
       auth: true,
     );
 
     if (response.statusCode == 200) {
-      final data =
-          jsonDecode(response.body);
-
-      return data['nao_lidas'] ?? 0;
+      final data = jsonDecode(response.body);
+      return (data['nao_lidas'] as num?)?.toInt() ?? 0;
     }
 
     throw Exception(
-      'Erro ao contar notificações: '
-      '${response.statusCode}',
+      'Erro ao contar notificações: ${response.statusCode}',
     );
   }
 
@@ -2390,41 +1805,32 @@ class ApiService {
   // NOTIFICAÇÕES - MARCAR COMO LIDA
   // ============================================================
 
-  static Future<void>
-      marcarNotificacaoComoLida(
+  static Future<void> marcarNotificacaoComoLida(
     int notificacaoId,
   ) async {
     final url = Uri.parse(
-      '$baseUrl/notificacoes/'
-      '$notificacaoId/ler',
+      '$baseUrl/notificacoes/$notificacaoId/ler',
     );
 
-    final response =
-        await _enviarRequisicao(
+    final response = await _enviarRequisicao(
       'PUT',
       url,
       auth: true,
     );
 
     if (response.statusCode != 200) {
+      String mensagem =
+          'Erro ao marcar notificação como lida.';
+
       try {
-        final data =
-            jsonDecode(response.body);
+        final data = jsonDecode(response.body);
 
-        throw Exception(
-          data['detail'] ??
-              'Erro ao marcar notificação como lida',
-        );
-      } catch (e) {
-        if (e is Exception) {
-          rethrow;
+        if (data is Map && data['detail'] != null) {
+          mensagem = data['detail'].toString();
         }
+      } catch (_) {}
 
-        throw Exception(
-          'Erro ao marcar notificação como lida: '
-          '${response.statusCode}',
-        );
-      }
+      throw Exception(mensagem);
     }
   }
 
@@ -2432,25 +1838,15 @@ class ApiService {
   // ONBOARDING
   // ============================================================
 
-  static Future<bool>
-      jaViuBoasVindas() async {
-    final prefs =
-        await SharedPreferences.getInstance();
+  static Future<bool> jaViuBoasVindas() async {
+    final prefs = await SharedPreferences.getInstance();
 
-    return prefs.getBool(
-          'ja_viu_boasvindas',
-        ) ??
-        false;
+    return prefs.getBool('ja_viu_boasvindas') ?? false;
   }
 
-  static Future<void>
-      marcarBoasVindasVistas() async {
-    final prefs =
-        await SharedPreferences.getInstance();
+  static Future<void> marcarBoasVindasVistas() async {
+    final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setBool(
-      'ja_viu_boasvindas',
-      true,
-    );
+    await prefs.setBool('ja_viu_boasvindas', true);
   }
 }

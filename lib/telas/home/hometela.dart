@@ -80,8 +80,9 @@ class _HomeScreenState extends State<HomeScreen>
 
     _carregarNotificacoesNaoLidas();
 
+    // Atualiza o contador de notificações a cada 1 minuto.
     _timerNotificacoes = Timer.periodic(
-      const Duration(seconds: 10),
+      const Duration(minutes: 1),
       (_) {
         if (mounted) {
           _carregarNotificacoesNaoLidas();
@@ -451,10 +452,6 @@ class _HomeScreenState extends State<HomeScreen>
     final videosRecentes =
         List<dynamic>.from(_videos);
 
-    // Ordena os vídeos do maior ID para o menor.
-    // Assim, os vídeos cadastrados mais recentemente
-    // aparecem primeiro.
-
     videosRecentes.sort(
       (a, b) {
         final idA =
@@ -472,8 +469,6 @@ class _HomeScreenState extends State<HomeScreen>
         return idB.compareTo(idA);
       },
     );
-
-    // Pega no máximo os 3 vídeos mais recentes.
 
     final ultimosVideos =
         videosRecentes.take(3).toList();
@@ -505,10 +500,6 @@ class _HomeScreenState extends State<HomeScreen>
             final duracao =
                 video['duracao']?.toString() ??
                     '';
-
-            // ==================================================
-            // PEGA O ID DO YOUTUBE
-            // ==================================================
 
             String videoId = '';
 
